@@ -1,6 +1,4 @@
-import argparse
 import os
-import requests
 
 from notion_helper import NotionHelper
 from weread_api import WeReadApi
@@ -16,6 +14,49 @@ from utils import (
 )
 
 
+# These clients are initialized by ``main`` and shared by the small sync
+# helpers below. Keeping the names explicit also makes the helpers easy to
+# replace with fakes in offline tests.
+weread_api = None
+notion_helper = None
+
+
+def allow_remote_deletions():
+    return os.getenv("ALLOW_REMOTE_DELETIONS", "").lower() in {"1", "true", "yes"}
+
+
+def personal_rating_from_reviews(reviews):
+    """Return the newest whole-book personal rating as a Notion select name."""
+
+    candidates = []
+    for review in reviews or []:
+        whole_book_review = (
+            review.get("type") == 4
+            or review.get("chapterUid") == 1_000_000
+            or (
+                "isFinish" in review
+                and not review.get("range")
+                and not review.get("chapterName")
+            )
+        )
+        if not whole_book_review:
+            continue
+        try:
+            star = int(float(review.get("star")))
+        except (TypeError, ValueError):
+            continue
+        if 1 <= star <= 5:
+            try:
+                created_at = float(review.get("createTime") or 0)
+            except (TypeError, ValueError):
+                created_at = 0
+            candidates.append((created_at, star))
+    if not candidates:
+        return None
+    _, star = max(candidates, key=lambda item: item[0])
+    return "⭐️" * star
+
+
 def get_bookmark_list(page_id, bookId):
     """获取我的划线"""
     filter = {
@@ -27,24 +68,28 @@ def get_bookmark_list(page_id, bookId):
     results = notion_helper.query_all_by_book(
         notion_helper.bookmark_database_id, filter
     )
-    dict1 = {
-        get_rich_text_from_result(x, "bookmarkId"): get_rich_text_from_result(
-            x, "blockId"
-        )
-        for x in results
-    }
-    dict2 = {get_rich_text_from_result(x, "blockId"): x.get("id") for x in results}
+    dict1 = {}
+    dict2 = {}
+    for result in results:
+        bookmark_id = get_rich_text_from_result(result, "bookmarkId")
+        block_id = get_rich_text_from_result(result, "blockId")
+        if bookmark_id and block_id:
+            dict1[bookmark_id] = block_id
+            dict2[block_id] = result.get("id")
     bookmarks = weread_api.get_bookmark_list(bookId)
     for i in bookmarks:
         if i.get("bookmarkId") in dict1:
             i["blockId"] = dict1.pop(i.get("bookmarkId"))
-    for blockId in dict1.values():
-        notion_helper.delete_block(blockId)
-        notion_helper.delete_block(dict2.get(blockId))
+    if dict1 and allow_remote_deletions():
+        for blockId in dict1.values():
+            notion_helper.delete_block(blockId)
+            notion_helper.delete_block(dict2.get(blockId))
+    elif dict1:
+        print(f"检测到 {len(dict1)} 条远端已缺失划线；默认保留，避免误删。")
     return bookmarks
 
 
-def get_review_list(page_id,bookId):
+def get_review_list(page_id, bookId):
     """获取笔记"""
     filter = {
         "and": [
@@ -53,20 +98,24 @@ def get_review_list(page_id,bookId):
         ]
     }
     results = notion_helper.query_all_by_book(notion_helper.review_database_id, filter)
-    dict1 = {
-        get_rich_text_from_result(x, "reviewId"): get_rich_text_from_result(
-            x, "blockId"
-        )
-        for x in results
-    }
-    dict2 = {get_rich_text_from_result(x, "blockId"): x.get("id") for x in results}
+    dict1 = {}
+    dict2 = {}
+    for result in results:
+        review_id = get_rich_text_from_result(result, "reviewId")
+        block_id = get_rich_text_from_result(result, "blockId")
+        if review_id and block_id:
+            dict1[review_id] = block_id
+            dict2[block_id] = result.get("id")
     reviews = weread_api.get_review_list(bookId)
     for i in reviews:
         if i.get("reviewId") in dict1:
             i["blockId"] = dict1.pop(i.get("reviewId"))
-    for blockId in dict1.values():
-        notion_helper.delete_block(blockId)
-        notion_helper.delete_block(dict2.get(blockId))
+    if dict1 and allow_remote_deletions():
+        for blockId in dict1.values():
+            notion_helper.delete_block(blockId)
+            notion_helper.delete_block(dict2.get(blockId))
+    elif dict1:
+        print(f"检测到 {len(dict1)} 条远端已缺失想法；默认保留，避免误删。")
     return reviews
 
 
@@ -101,41 +150,28 @@ def get_sort():
     return 0
 
 
-def download_image(url, save_dir="cover"):
-    # 确保目录存在，如果不存在则创建
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-
-    # 获取文件名，使用 URL 最后一个 '/' 之后的字符串
-    file_name = url.split("/")[-1] + ".jpg"
-    save_path = os.path.join(save_dir, file_name)
-
-    # 检查文件是否已经存在，如果存在则不进行下载
-    if os.path.exists(save_path):
-        print(f"File {file_name} already exists. Skipping download.")
-        return save_path
-
-    response = requests.get(url, stream=True)
-    if response.status_code == 200:
-        with open(save_path, "wb") as file:
-            for chunk in response.iter_content(chunk_size=128):
-                file.write(chunk)
-        print(f"Image downloaded successfully to {save_path}")
-    else:
-        print(f"Failed to download image. Status code: {response.status_code}")
-    return save_path
-
-
 def sort_notes(page_id, chapter, bookmark_list):
     """对笔记进行排序"""
+
+    def note_sort_key(item):
+        chapter_uid = item.get("chapterUid", 1)
+        chapter_info = (chapter or {}).get(chapter_uid) or (chapter or {}).get(
+            str(chapter_uid)
+        )
+        chapter_index = (chapter_info or {}).get("chapterIdx", chapter_uid)
+        try:
+            chapter_index = int(chapter_index)
+        except (TypeError, ValueError):
+            chapter_index = 1_000_000
+        try:
+            range_start = int(str(item.get("range") or "0-0").split("-")[0] or 0)
+        except (TypeError, ValueError):
+            range_start = 0
+        return chapter_index, range_start
+
     bookmark_list = sorted(
         bookmark_list,
-        key=lambda x: (
-            x.get("chapterUid", 1),
-            0
-            if (x.get("range", "") == "" or x.get("range").split("-")[0] == "")
-            else int(x.get("range").split("-")[0]),
-        ),
+        key=note_sort_key,
     )
 
     notes = []
@@ -144,13 +180,14 @@ def sort_notes(page_id, chapter, bookmark_list):
         results = notion_helper.query_all_by_book(
             notion_helper.chapter_database_id, filter
         )
-        dict1 = {
-            get_number_from_result(x, "chapterUid"): get_rich_text_from_result(
-                x, "blockId"
-            )
-            for x in results
-        }
-        dict2 = {get_rich_text_from_result(x, "blockId"): x.get("id") for x in results}
+        dict1 = {}
+        dict2 = {}
+        for result in results:
+            chapter_uid = get_number_from_result(result, "chapterUid")
+            block_id = get_rich_text_from_result(result, "blockId")
+            if chapter_uid is not None and block_id:
+                dict1[chapter_uid] = block_id
+                dict2[block_id] = result.get("id")
         d = {}
         for data in bookmark_list:
             chapterUid = data.get("chapterUid", 1)
@@ -163,9 +200,12 @@ def sort_notes(page_id, chapter, bookmark_list):
                     chapter.get(key)["blockId"] = dict1.pop(key)
                 notes.append(chapter.get(key))
             notes.extend(value)
-        for blockId in dict1.values():
-            notion_helper.delete_block(blockId)
-            notion_helper.delete_block(dict2.get(blockId))
+        if dict1 and allow_remote_deletions():
+            for blockId in dict1.values():
+                notion_helper.delete_block(blockId)
+                notion_helper.delete_block(dict2.get(blockId))
+        elif dict1:
+            print(f"检测到 {len(dict1)} 个远端已缺失章节；默认保留，避免误删。")
     else:
         notes.extend(bookmark_list)
     return notes
@@ -254,34 +294,39 @@ def append_blocks_to_notion(id, blocks, after, contents):
     return l
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    options = parser.parse_args()
-    branch = os.getenv("REF").split("/")[-1]
-    repository =  os.getenv("REPOSITORY")
+def main():
+    global weread_api, notion_helper
     weread_api = WeReadApi()
     notion_helper = NotionHelper()
     notion_books = notion_helper.get_all_book()
     books = weread_api.get_notebooklist()
-    print(len(books))
-    if books != None:
-        for index, book in enumerate(books):
-            bookId = book.get("bookId")
-            title = book.get("book").get("title")
-            sort = book.get("sort")
-            if bookId not in notion_books:
-                continue
-            if sort == notion_books.get(bookId).get("Sort"):
-                continue
-            pageId = notion_books.get(bookId).get("pageId")
-            print(f"正在同步《{title}》,一共{len(books)}本，当前是第{index+1}本。")
-            chapter = weread_api.get_chapter_info(bookId)
-            bookmark_list = get_bookmark_list(pageId, bookId)
-            reviews = get_review_list(pageId,bookId)
-            bookmark_list.extend(reviews)
-            content = sort_notes(pageId, chapter, bookmark_list)
-            append_blocks(pageId, content)
-            properties = {
-                "Sort":get_number(sort)
-            }
-            notion_helper.update_book_page(page_id=pageId,properties=properties)
+    full_sync = os.getenv("FULL_SYNC_NOTES", "").lower() in {"1", "true", "yes"}
+    print(f"找到 {len(books)} 本含笔记的书。")
+    for index, item in enumerate(books):
+        book = item.get("book") or item
+        bookId = item.get("bookId") or book.get("bookId")
+        title = book.get("title") or f"微信读书 {bookId}"
+        sort = item.get("sort") or 0
+        if not bookId or bookId not in notion_books:
+            continue
+        if not full_sync and sort == (notion_books.get(bookId).get("Sort") or 0):
+            continue
+        pageId = notion_books.get(bookId).get("pageId")
+        print(f"正在同步《{title}》，共 {len(books)} 本，当前第 {index + 1} 本。")
+        chapter = weread_api.get_chapter_info(bookId)
+        bookmark_list = get_bookmark_list(pageId, bookId)
+        reviews = get_review_list(pageId, bookId)
+        personal_rating = personal_rating_from_reviews(reviews)
+        bookmark_list.extend(reviews)
+        content = sort_notes(pageId, chapter, bookmark_list)
+        append_blocks(pageId, content)
+        properties = {"Sort": get_number(sort)}
+        if personal_rating:
+            properties["我的评分"] = {"select": {"name": personal_rating}}
+        notion_helper.update_book_page(
+            page_id=pageId, properties=properties
+        )
+
+
+if __name__ == "__main__":
+    main()

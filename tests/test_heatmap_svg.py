@@ -1,0 +1,54 @@
+from datetime import date, datetime
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import unittest
+import xml.etree.ElementTree as ET
+
+from scripts.heatmap_svg import SHANGHAI, HeatmapPalette, render_heatmap, write_heatmap
+
+
+class HeatmapSvgTests(unittest.TestCase):
+    def test_render_is_standalone_escaped_and_has_one_cell_per_day(self):
+        timestamp = int(datetime(2024, 1, 1, tzinfo=SHANGHAI).timestamp())
+        svg = render_heatmap(
+            {timestamp: 300, "2024-01-02": 1800},
+            2024,
+            title="我 < 读书",
+        )
+
+        ET.fromstring(svg)
+        self.assertTrue(svg.startswith('<?xml version="1.0"'))
+        self.assertEqual(svg.count("data-date="), 366)
+        self.assertIn("我 &lt; 读书", svg)
+        self.assertIn(
+            'fill="#ace7ae" data-date="2024-01-01" data-seconds="300"', svg
+        )
+        self.assertIn(
+            'fill="#549f57" data-date="2024-01-02" data-seconds="1800"', svg
+        )
+
+    def test_palette_and_invalid_entries_are_handled_without_dependencies(self):
+        palette = HeatmapPalette(empty="#000000", high="#ffffff")
+        svg = render_heatmap(
+            {date(2025, 3, 4): 3600, "not-a-date": 99, 0: -5},
+            2025,
+            palette=palette,
+        )
+
+        self.assertIn(
+            'fill="#ffffff" data-date="2025-03-04" data-seconds="3600"', svg
+        )
+        self.assertNotIn("not-a-date", svg)
+
+    def test_write_heatmap_creates_the_target_directory(self):
+        with TemporaryDirectory() as directory:
+            output = Path(directory) / "nested" / "weread-2025.svg"
+            result = write_heatmap(output, {"2025-01-01": 60}, 2025)
+
+            self.assertEqual(result, output)
+            self.assertTrue(output.is_file())
+            self.assertIn("2025-01-01", output.read_text(encoding="utf-8"))
+
+
+if __name__ == "__main__":
+    unittest.main()

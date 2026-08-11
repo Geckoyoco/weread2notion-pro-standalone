@@ -1,6 +1,5 @@
-requests
-notion-client
-github-heatmap
-retrying
-pendulum
-python-dotenv
+requests>=2.32,<3
+notion-client>=3.1,<4
+retrying>=1.4,<2
+pendulum>=3,<4
+python-dotenv>=1,<2

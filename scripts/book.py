@@ -1,167 +1,234 @@
-import argparse
-from datetime import datetime, timedelta
+"""Synchronize WeRead bookshelf metadata and progress to the Pro template."""
+
 import os
+import re
 
 import pendulum
 import requests
-from notion_helper import NotionHelper
+from retrying import retry
 
+from config import book_properties_type_dict, tz
+from notion_helper import NotionHelper
 from weread_api import WeReadApi
 import utils
-from config import book_properties_type_dict, tz
-from retrying import retry
+
 
 TAG_ICON_URL = "https://www.notion.so/icons/tag_gray.svg"
 USER_ICON_URL = "https://www.notion.so/icons/user-circle-filled_gray.svg"
 BOOK_ICON_URL = "https://www.notion.so/icons/book_gray.svg"
 
-rating = {"poor": "⭐️", "fair": "⭐️⭐️⭐️", "good": "⭐️⭐️⭐️⭐️⭐️"}
+RATING = {"poor": "⭐️", "fair": "⭐️⭐️⭐️", "good": "⭐️⭐️⭐️⭐️⭐️"}
 
 
-@retry(stop_max_attempt_number=3, wait_fixed=5000)
-def get_douban_url(isbn):
-    print(f"get_douban_url {isbn} ")
-    params = {"query": isbn, "page": "1", "category": "book"}
-    r = requests.get("https://neodb.social/api/catalog/search", params=params)
-    books = r.json().get("data")
-    if books is None or len(books) == 0:
-        return None
-    results = list(filter(lambda x: x.get("isbn") == isbn, books))
-    if len(results) == 0:
-        return None
-    result = results[0]
-    urls = list(
-        filter(
-            lambda x: x.get("url").startswith("https://book.douban.com"),
-            result.get("external_resources", []),
-        )
-    )
-    if len(urls) == 0:
-        return None
-    return urls[0].get("url")
+def to_number(value, default=0):
+    if value is None or value == "":
+        return default
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+    return int(number) if number.is_integer() else number
 
 
-def insert_book_to_notion(books, index, bookId):
-    """插入Book到Notion"""
-    book = {}
-    if bookId in archive_dict:
-        book["书架分类"] = archive_dict.get(bookId)
-    if bookId in notion_books:
-        book.update(notion_books.get(bookId))
-    bookInfo = weread_api.get_bookinfo(bookId)
-    if bookInfo != None:
-        book.update(bookInfo)
-    readInfo = weread_api.get_read_info(bookId)
-    # 研究了下这个状态不知道什么情况有的虽然读了状态还是1 markedStatus = 1 想读 4 读完 其他为在读
-    readInfo.update(readInfo.get("readDetail", {}))
-    readInfo.update(readInfo.get("bookInfo", {}))
-    book.update(readInfo)
-    book["阅读进度"] = (
-        100 if (book.get("markedStatus") == 4) else book.get("readingProgress", 0)
-    ) / 100
-    markedStatus = book.get("markedStatus")
-    status = "想读"
-    if markedStatus == 4:
-        status = "已读"
-    elif book.get("readingTime", 0) >= 60:
-        status = "在读"
-    book["阅读状态"] = status
-    book["阅读时长"] = book.get("readingTime")
-    book["阅读天数"] = book.get("totalReadDay")
-    book["评分"] = book.get("newRating")
-    if book.get("newRatingDetail") and book.get("newRatingDetail").get("myRating"):
-        book["我的评分"] = rating.get(book.get("newRatingDetail").get("myRating"))
-    elif status == "已读":
-        book["我的评分"] = "未评分"
-    date = None
-    if book.get("finishedDate"):
-        date = book.get("finishedDate")
-    elif book.get("lastReadingDate"):
-        date = book.get("lastReadingDate")
-    elif book.get("readingBookDate"):
-        date = book.get("readingBookDate")
-    book["时间"] = date
-    book["开始阅读时间"] = book.get("beginReadingDate")
-    book["最后阅读时间"] = book.get("lastReadingDate")
-    cover = book.get("cover").replace("/s_", "/t7_")
-    if not cover and not cover.strip() and not cover.startswith("http"):
-        cover = BOOK_ICON_URL
-    if bookId not in notion_books:
-        isbn = book.get("isbn")
-        if isbn and isbn.strip():
-            douban_url = get_douban_url(isbn)
-            if douban_url:
-                book["douban_url"] = douban_url
-        book["书名"] = book.get("title")
-        book["BookId"] = book.get("bookId")
-        book["ISBN"] = book.get("isbn")
-        book["链接"] = utils.get_weread_url(bookId)
-        book["简介"] = book.get("intro")
-        book["作者"] = [
-            notion_helper.get_relation_id(
-                x, notion_helper.author_database_id, USER_ICON_URL
-            )
-            for x in book.get("author").split(" ")
-        ]
-        if book.get("categories"):
-            book["分类"] = [
-                notion_helper.get_relation_id(
-                    x.get("title"), notion_helper.category_database_id, TAG_ICON_URL
-                )
-                for x in book.get("categories")
-            ]
-    properties = utils.get_properties(book, book_properties_type_dict)
-    if book.get("时间"):
-        notion_helper.get_date_relation(
-            properties,
-            pendulum.from_timestamp(book.get("时间"), tz="Asia/Shanghai"),
-        )
+def normalize_timestamp(value):
+    value = to_number(value, 0)
+    if value > 100_000_000_000:
+        value /= 1000
+    return int(value) if value else None
 
-    print(f"正在插入《{book.get('title')}》,一共{len(books)}本，当前是第{index+1}本。")
-    parent = {"database_id": notion_helper.book_database_id, "type": "database_id"}
-    result = None
-    if bookId in notion_books:
-        result = notion_helper.update_page(
-            page_id=notion_books.get(bookId).get("pageId"),
-            properties=properties,
-            cover=utils.get_icon(cover),
-        )
+
+def normalize_progress(value):
+    """Normalize an already-fractional value, or a percentage above 1."""
+    value = to_number(value, 0)
+    if value > 1:
+        value /= 100
+    return round(min(max(value, 0), 1), 4)
+
+
+def normalize_gateway_progress(value):
+    """Convert the Gateway's documented 0..100 integer to Notion 0..1.
+
+    The boundary matters: Gateway ``progress=1`` means one percent, while a
+    generic percent helper commonly interprets the numeric value 1 as 100%.
+    """
+
+    value = to_number(value, 0) / 100
+    return round(min(max(value, 0), 1), 4)
+
+
+def normalize_gateway_rating(value):
+    """Convert Gateway ``newRating`` (0..100) to the Pro template's 0..10."""
+
+    value = to_number(value, 0) / 10
+    return round(min(max(value, 0), 10), 2)
+
+
+def reading_status(marked_status, progress, reading_time):
+    """Map the compatibility status to the Pro template's status names."""
+
+    if marked_status == 4:
+        return "已读"
+    if to_number(reading_time, 0) > 0 or to_number(progress, 0) > 0:
+        return "在读"
+    return "想读"
+
+
+def normalize_categories(value):
+    if not value:
+        return []
+    if isinstance(value, str):
+        value = [value]
+    result = []
+    for item in value:
+        if isinstance(item, dict):
+            name = item.get("title") or item.get("name") or item.get("categoryTitle")
+        else:
+            name = str(item)
+        if name:
+            name = name.strip()
+            if name and name not in result:
+                result.append(name)
+    return result
+
+
+def normalize_cover(value):
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        cover_type = value.get("type")
+        nested = value.get(cover_type) if cover_type else None
+        if isinstance(nested, dict):
+            return nested.get("url") or ""
+        return value.get("url") or ""
+    return ""
+
+
+def split_authors(value):
+    if not value:
+        return []
+    if isinstance(value, (list, tuple)):
+        values = value
     else:
-        result = notion_helper.create_book_page(
-            parent=parent,
-            properties=properties,
-            icon=utils.get_icon(cover),
+        values = re.split(r"\s*(?:/|、|;|；|,|，)\s*", str(value))
+    return [str(item).strip() for item in values if str(item).strip()]
+
+
+def unwrap_book(value):
+    if not isinstance(value, dict):
+        return {}
+    nested = value.get("book")
+    return dict(nested) if isinstance(nested, dict) else dict(value)
+
+
+@retry(stop_max_attempt_number=3, wait_fixed=3000)
+def get_douban_url(isbn):
+    """Best-effort ISBN lookup; synchronization must not depend on NeoDB."""
+    if not isbn:
+        return None
+    params = {"query": isbn, "page": "1", "category": "book"}
+    response = requests.get(
+        "https://neodb.social/api/catalog/search", params=params, timeout=15
+    )
+    response.raise_for_status()
+    books = response.json().get("data") or []
+    for result in books:
+        if result.get("isbn") != isbn:
+            continue
+        for resource in result.get("external_resources") or []:
+            url = resource.get("url") or ""
+            if url.startswith("https://book.douban.com"):
+                return url
+    return None
+
+
+def build_archive_map(shelf):
+    result = {}
+    for archive in shelf.get("archive") or []:
+        name = archive.get("name")
+        if not name:
+            continue
+        result.update(
+            {str(book_id): name for book_id in archive.get("bookIds") or []}
         )
-    page_id = result.get("id")
-    if book.get("readDetail") and book.get("readDetail").get("data"):
-        data = book.get("readDetail").get("data")
-        data = {item.get("readDate"): item.get("readTime") for item in data}
-        insert_read_data(page_id, data)
+    return result
 
 
-def insert_read_data(page_id, readTimes):
-    readTimes = dict(sorted(readTimes.items()))
-    filter = {"property": "书架", "relation": {"contains": page_id}}
-    results = notion_helper.query_all_by_book(notion_helper.read_database_id, filter)
+def collect_books(shelf, notebooks):
+    """Merge shelf and notebook records while retaining notebook sort cursors."""
+    records = {}
+    for item in shelf.get("books") or []:
+        book = unwrap_book(item)
+        book_id = book.get("bookId") or item.get("bookId")
+        if not book_id:
+            continue
+        book_id = str(book_id)
+        records[book_id] = {**book, "bookId": book_id}
+
+    for item in notebooks or []:
+        book = unwrap_book(item)
+        book_id = item.get("bookId") or book.get("bookId")
+        if not book_id:
+            continue
+        book_id = str(book_id)
+        previous = records.get(book_id, {})
+        records[book_id] = {
+            **previous,
+            **book,
+            "bookId": book_id,
+            "sort": item.get("sort") or previous.get("sort") or 0,
+        }
+    return records
+
+
+def needs_sync(book_id, book, existing, archive_map, full_sync=False):
+    if full_sync or not existing:
+        return True
+    if archive_map.get(book_id) != existing.get("category"):
+        return True
+    if not existing.get("cover"):
+        return True
+
+    # ``updateTime`` is the book metadata timestamp, not a reading cursor.
+    # Comparing it with Notion's last-reading field would resync every unread
+    # book on every run. Metadata can still be refreshed with FULL_SYNC.
+    remote_update = normalize_timestamp(book.get("readUpdateTime"))
+    local_update = normalize_timestamp(existing.get("lastReadingDate"))
+    return bool(remote_update and (not local_update or remote_update > local_update))
+
+
+def book_date(book):
+    return normalize_timestamp(
+        book.get("finishedDate")
+        or book.get("activityDate")
+        or book.get("lastReadingDate")
+        or book.get("readUpdateTime")
+        or book.get("readingBookDate")
+    )
+
+
+def insert_read_data(notion_helper, page_id, read_times):
+    """Compatibility hook for legacy per-book daily details when available."""
+    if not read_times or not notion_helper.read_database_id:
+        return
+    read_times = {int(key): value for key, value in sorted(read_times.items())}
+    relation_filter = {"property": "书架", "relation": {"contains": page_id}}
+    results = notion_helper.query_all_by_book(
+        notion_helper.read_database_id, relation_filter
+    )
     for result in results:
-        timestamp = result.get("properties").get("时间戳").get("number")
-        duration = result.get("properties").get("时长").get("number")
-        id = result.get("id")
-        if timestamp in readTimes:
-            value = readTimes.pop(timestamp)
+        timestamp = result.get("properties", {}).get("时间戳", {}).get("number")
+        duration = result.get("properties", {}).get("时长", {}).get("number")
+        if timestamp in read_times:
+            value = read_times.pop(timestamp)
             if value != duration:
-                insert_to_notion(
-                    page_id=id,
-                    timestamp=timestamp,
-                    duration=value,
-                    book_database_id=page_id,
+                insert_read_record(
+                    notion_helper, result.get("id"), timestamp, value, page_id
                 )
-    for key, value in readTimes.items():
-        insert_to_notion(None, int(key), value, page_id)
+    for timestamp, duration in read_times.items():
+        insert_read_record(notion_helper, None, timestamp, duration, page_id)
 
 
-def insert_to_notion(page_id, timestamp, duration, book_database_id):
-    parent = {"database_id": notion_helper.read_database_id, "type": "database_id"}
+def insert_read_record(notion_helper, page_id, timestamp, duration, book_page_id):
     properties = {
         "标题": utils.get_title(
             pendulum.from_timestamp(timestamp, tz=tz).to_date_string()
@@ -173,49 +240,170 @@ def insert_to_notion(page_id, timestamp, duration, book_database_id):
         ),
         "时长": utils.get_number(duration),
         "时间戳": utils.get_number(timestamp),
-        "书架": utils.get_relation([book_database_id]),
+        "书架": utils.get_relation([book_page_id]),
     }
-    if page_id != None:
+    if page_id:
         notion_helper.client.pages.update(page_id=page_id, properties=properties)
     else:
-        notion_helper.client.pages.create(
-            parent=parent,
-            icon=utils.get_icon("https://www.notion.so/icons/target_red.svg"),
-            properties=properties,
+        notion_helper.create_page_in_database(
+            notion_helper.read_database_id,
+            properties,
+            utils.get_icon("https://www.notion.so/icons/target_red.svg"),
+        )
+
+
+def sync_book(notion_helper, weread_api, notion_books, archive_map, books, index, book_id):
+    existing = notion_books.get(book_id)
+    seed = {
+        key: value
+        for key, value in (existing or {}).items()
+        if value is not None
+    }
+    seed.update(books[book_id])
+    if existing:
+        if existing.get("myRating"):
+            seed["我的评分"] = existing.get("myRating")
+        if existing.get("douban_url"):
+            seed["豆瓣链接"] = existing.get("douban_url")
+
+    detail = unwrap_book(weread_api.get_bookinfo(book_id))
+    # An incomplete metadata response must not erase richer shelf or existing
+    # Notion values. Numeric zero remains meaningful (for example newRating).
+    seed.update(
+        {
+            key: value
+            for key, value in detail.items()
+            if value is not None and value != "" and value != [] and value != {}
+        }
+    )
+    progress = weread_api.get_read_info(book_id) or {}
+    seed.update({key: value for key, value in progress.items() if value is not None})
+
+    seed["书架分类"] = archive_map.get(book_id)
+    seed["阅读进度"] = normalize_gateway_progress(seed.get("readingProgress"))
+    marked_status = seed.get("markedStatus")
+    status = reading_status(
+        marked_status, seed["阅读进度"], seed.get("readingTime")
+    )
+    seed["阅读状态"] = status
+    seed["阅读时长"] = to_number(seed.get("readingTime"), 0)
+    if seed.get("totalReadDay") is not None:
+        seed["阅读天数"] = to_number(seed.get("totalReadDay"), 0)
+    seed["评分"] = normalize_gateway_rating(seed.get("newRating"))
+
+    rating_detail = seed.get("newRatingDetail") or {}
+    if rating_detail.get("myRating"):
+        seed["我的评分"] = RATING.get(rating_detail.get("myRating"))
+    elif status == "已读" and not seed.get("我的评分"):
+        seed["我的评分"] = "未评分"
+
+    seed["时间"] = book_date(seed)
+    seed["开始阅读时间"] = normalize_timestamp(seed.get("beginReadingDate"))
+    seed["最后阅读时间"] = normalize_timestamp(
+        seed.get("lastReadingDate")
+        or seed.get("activityDate")
+        or seed.get("readUpdateTime")
+    )
+
+    cover = normalize_cover(seed.get("cover")).replace("/s_", "/t7_")
+    if not cover.startswith("http"):
+        cover = BOOK_ICON_URL
+
+    title = seed.get("title") or seed.get("书名") or f"微信读书 {book_id}"
+    seed["书名"] = title
+    seed["BookId"] = book_id
+    seed["ISBN"] = seed.get("isbn") or ""
+    seed["链接"] = seed.get("deepLink") or utils.get_weread_url(book_id)
+    seed["简介"] = seed.get("intro") or ""
+    # Sort is the notes cursor.  weread.py advances it only after the page
+    # blocks and auxiliary note databases have been updated successfully.
+    seed["Sort"] = to_number((existing or {}).get("Sort"), 0)
+    seed["封面"] = cover
+
+    authors = split_authors(seed.get("author"))
+    if authors and notion_helper.author_database_id:
+        seed["作者"] = [
+            notion_helper.get_relation_id(
+                author, notion_helper.author_database_id, USER_ICON_URL
+            )
+            for author in authors
+        ]
+    categories = normalize_categories(seed.get("categories") or seed.get("category"))
+    if categories and notion_helper.category_database_id:
+        seed["分类"] = [
+            notion_helper.get_relation_id(
+                category, notion_helper.category_database_id, TAG_ICON_URL
+            )
+            for category in categories
+        ]
+
+    if not existing and seed["ISBN"]:
+        try:
+            seed["豆瓣链接"] = get_douban_url(seed["ISBN"])
+        except Exception as error:
+            print(f"NeoDB 查询失败，继续同步《{title}》: {error}")
+
+    properties = utils.get_properties(seed, book_properties_type_dict)
+    if existing and existing.get("category") and book_id not in archive_map:
+        properties["书架分类"] = {"select": None}
+    if seed.get("时间"):
+        notion_helper.get_date_relation(
+            properties, pendulum.from_timestamp(seed["时间"], tz=tz)
+        )
+
+    print(f"正在同步《{title}》，共 {len(books)} 本，当前第 {index + 1} 本。")
+    icon = utils.get_icon(cover)
+    if existing:
+        result = notion_helper.update_page(
+            page_id=existing.get("pageId"), properties=properties, cover=icon
+        )
+    else:
+        result = notion_helper.create_book_page(properties=properties, icon=icon)
+
+    read_detail = seed.get("readDetail") or {}
+    data = read_detail.get("data") or []
+    if data:
+        insert_read_data(
+            notion_helper,
+            result.get("id"),
+            {item.get("readDate"): item.get("readTime") for item in data},
+        )
+
+
+def main():
+    weread_api = WeReadApi()
+    notion_helper = NotionHelper()
+    notion_books = notion_helper.get_all_book()
+    shelf = weread_api.get_bookshelf()
+    notebooks = weread_api.get_notebooklist()
+    archive_map = build_archive_map(shelf)
+    books = collect_books(shelf, notebooks)
+    full_sync = os.getenv("FULL_SYNC", "").lower() in {"1", "true", "yes"}
+
+    selected = [
+        book_id
+        for book_id, book in books.items()
+        if needs_sync(
+            book_id,
+            book,
+            notion_books.get(book_id),
+            archive_map,
+            full_sync=full_sync,
+        )
+    ]
+    print(f"书架共 {len(books)} 本，本次需更新 {len(selected)} 本。")
+    selected_books = {book_id: books[book_id] for book_id in selected}
+    for index, book_id in enumerate(selected):
+        sync_book(
+            notion_helper,
+            weread_api,
+            notion_books,
+            archive_map,
+            selected_books,
+            index,
+            book_id,
         )
 
 
 if __name__ == "__main__":
-    weread_api = WeReadApi()
-    notion_helper = NotionHelper()
-    notion_books = notion_helper.get_all_book()
-    bookshelf_books = weread_api.get_bookshelf()
-    bookProgress = bookshelf_books.get("bookProgress")
-    bookProgress = {book.get("bookId"): book for book in bookProgress}
-    archive_dict = {}
-    for archive in bookshelf_books.get("archive"):
-        name = archive.get("name")
-        bookIds = archive.get("bookIds")
-        archive_dict.update({bookId: name for bookId in bookIds})
-    not_need_sync = []
-    for key, value in notion_books.items():
-        if (
-            (
-                key not in bookProgress
-                or value.get("readingTime") == bookProgress.get(key).get("readingTime")
-            )
-            and (archive_dict.get(key) == value.get("category"))
-            and (value.get("cover") is not None)
-            and (
-                value.get("status") != "已读"
-                or (value.get("status") == "已读" and value.get("myRating"))
-            )
-        ):
-            not_need_sync.append(key)
-    notebooks = weread_api.get_notebooklist()
-    notebooks = [d["bookId"] for d in notebooks if "bookId" in d]
-    books = bookshelf_books.get("books")
-    books = [d["bookId"] for d in books if "bookId" in d]
-    books = list((set(notebooks) | set(books)) - set(not_need_sync))
-    for index, bookId in enumerate(books):
-        insert_book_to_notion(books, index, bookId)
+    main()

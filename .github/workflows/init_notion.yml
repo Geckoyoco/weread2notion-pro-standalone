@@ -1,0 +1,36 @@
+name: Initialize Notion Pro
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: initialize-notion-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  initialize:
+    name: Create or validate Pro databases
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      NOTION_PAGE: ${{ secrets.NOTION_PAGE }}
+      BOOK_DATABASE_NAME: ${{ vars.BOOK_DATABASE_NAME }}
+      CHAPTER_DATABASE_NAME: ${{ vars.CHAPTER_DATABASE_NAME }}
+      READ_DATABASE_NAME: ${{ vars.READ_DATABASE_NAME }}
+      INITIALIZE_NOTION_TEMPLATE: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Initialize Notion Pro
+        run: python -u scripts/init_notion.py
