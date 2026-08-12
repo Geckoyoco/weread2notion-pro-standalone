@@ -5,30 +5,33 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>微信读书年度热力图</title>
   <style>
-    *{box-sizing:border-box}html,body{margin:0;background:#fff;color:#24292f;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    .card{width:100%;max-width:920px;margin:0 auto;border:1px solid #e5e7eb;border-radius:12px;padding:14px 12px 0;background:#fff;overflow:hidden}
-    .title{display:flex;align-items:center;gap:4px;margin:0 0 4px;font-size:15px;line-height:24px;font-weight:650;white-space:nowrap}
+    *{box-sizing:border-box}html,body{width:100%;min-width:0;margin:0;overflow-x:hidden;background:#fff;color:#24292f;font-family:"PingFang SC","Microsoft YaHei",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .card{width:100%;min-width:0;margin:0;border:1px solid #e5e7eb;border-radius:10px;padding:8px 9px 6px;background:#fff;overflow:hidden}
+    .title{display:flex;align-items:center;gap:4px;margin:0 0 2px;font-size:17px;line-height:24px;font-weight:700;white-space:nowrap}
+    .summary{min-height:18px;margin:1px 0 2px;font-size:13px;line-height:18px;font-weight:600;color:#24292f}
     .year-picker{position:relative;display:inline-flex;align-items:center;border-radius:6px;background:#eef0f2}
-    select{appearance:none;-webkit-appearance:none;border:0;outline:0;background:transparent;color:#59636e;font:650 12px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:5px 19px 5px 7px;cursor:pointer}
+    select{appearance:none;-webkit-appearance:none;border:0;outline:0;background:transparent;color:#59636e;font:600 13px/1 "PingFang SC","Microsoft YaHei",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:5px 19px 5px 7px;cursor:pointer}
     .chevron{position:absolute;right:6px;top:4px;color:#8b949e;font-size:10px;pointer-events:none}
     select:focus-visible{outline:2px solid #b7c7dc;outline-offset:1px;border-radius:6px}
-    img{display:block;width:100%;height:auto;min-height:210px;object-fit:contain}
-    @media(max-width:640px){.card{border-radius:0;padding:12px 8px 0}.title{font-size:14px}select{font-size:11px;padding:5px 18px 5px 6px}}
+    img{display:block;width:100%;max-width:100%;height:auto;object-fit:contain}
+    @media(max-width:640px){.card{padding:7px 6px 5px;border-radius:8px}.title{font-size:16px}.summary{font-size:12px;line-height:17px}select{font-size:12px;padding:5px 18px 5px 6px}}
   </style>
 </head>
 <body>
   <main class="card">
     <div class="title">微信读书 · <label class="year-picker"><select id="year" aria-label="选择年份"></select><span class="chevron">⌄</span></label></div>
+    <div class="summary" id="summary" aria-live="polite"></div>
     <img id="heatmap" src="../weread-2026.svg" alt="2026 年微信读书热力图">
   </main>
   <script>
     const select=document.querySelector('#year');
     const heatmap=document.querySelector('#heatmap');
+    const summary=document.querySelector('#summary');
     const years=[];
     for(let year=2026;year>=2020;year--){const value=String(year);years.push(value);select.add(new Option(value,value))}
     const requested=new URLSearchParams(location.search).get('year');
     select.value=years.includes(requested)?requested:years[0];
-    function show(){const y=select.value;heatmap.src=`../weread-${y}.svg?v=${Date.now()}`;heatmap.alt=`${y} 年微信读书热力图`;history.replaceState(null,'',`?year=${y}`)}
+    async function show(){const y=select.value;const url=`../weread-${y}.svg?v=${Date.now()}`;summary.textContent='统计加载中…';heatmap.src=url;heatmap.alt=`${y} 年微信读书热力图`;history.replaceState(null,'',`?year=${y}`);try{const text=await fetch(url).then(response=>{if(!response.ok)throw new Error(response.status);return response.text()});const svg=new DOMParser().parseFromString(text,'image/svg+xml').documentElement;summary.textContent=svg.getAttribute('data-summary')||`${y}：暂无数据`}catch(error){summary.textContent=`${y}：统计加载失败`}}
     select.addEventListener('change',show);show();
   </script>
 </body>

@@ -117,35 +117,37 @@ def render_heatmap(
     cell = 12
     gap = 3
     step = cell + gap
-    left = 38
-    top = 76
-    right = 22
-    bottom = 42
+    left = 34
+    top = 27
+    right = 10
+    bottom = 29
     width = left + week_count * step + right
     height = top + 7 * step + bottom
     heading = title or f"微信读书 · {year}"
+    summary = _summary(daily, year)
 
     background = escape(palette.background, quote=True)
     text_color = escape(palette.text, quote=True)
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         (
-            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" '
-            f'height="{height}" viewBox="0 0 {width} {height}" role="img" '
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="100%" '
+            f'viewBox="0 0 {width} {height}" preserveAspectRatio="xMinYMin meet" '
+            f'style="display:block;max-width:100%;height:auto" role="img" '
+            f'data-summary="{escape(summary, quote=True)}" '
             f'aria-label="{escape(heading, quote=True)}">'
         ),
         f'<rect width="100%" height="100%" rx="8" fill="{background}"/>',
         "<style>",
         (
-            ".label{font:10px -apple-system,BlinkMacSystemFont,"
-            "\"Segoe UI\",sans-serif}"
+            ".label{font:500 11px \"PingFang SC\",\"Microsoft YaHei\","
+            "-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}"
         ),
         (
-            ".summary{font:11px -apple-system,BlinkMacSystemFont,"
-            "\"Segoe UI\",sans-serif}"
+            ".summary{font:600 13px \"PingFang SC\",\"Microsoft YaHei\","
+            "-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}"
         ),
         "</style>",
-        f'<text class="summary" x="12" y="28" fill="{text_color}">{escape(_summary(daily, year))}</text>',
     ]
 
     month_names = ("1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月")
@@ -154,13 +156,13 @@ def render_heatmap(
         week_index = (month_start - grid_start).days // 7
         x = left + week_index * step
         lines.append(
-            f'<text class="label" x="{x}" y="{top - 10}" fill="{text_color}">{month_name}</text>'
+            f'<text class="label" x="{x}" y="{top - 8}" fill="{text_color}">{month_name}</text>'
         )
 
     for row, label in ((1, "一"), (3, "三"), (5, "五")):
         y = top + row * step + cell - 2
         lines.append(
-            f'<text class="label" x="18" y="{y}" fill="{text_color}">{label}</text>'
+            f'<text class="label" x="12" y="{y}" fill="{text_color}">{label}</text>'
         )
 
     current = first_day
@@ -193,10 +195,10 @@ def render_heatmap(
             f'text-anchor="middle" fill="#8b949e">暂无数据</text>'
         )
 
-    legend_y = top + 7 * step + 24
-    legend_x = width - right - (4 * step + 42)
+    legend_y = top + 7 * step + 9
+    legend_x = width - right - (4 * step + 34)
     lines.append(
-        f'<text class="label" x="{legend_x - 20}" y="{legend_y + 10}" fill="{text_color}">少</text>'
+        f'<text class="label" x="{legend_x - 17}" y="{legend_y + 10}" fill="{text_color}">少</text>'
     )
     for index, color in enumerate(
         (palette.empty, palette.low, palette.medium, palette.high)
