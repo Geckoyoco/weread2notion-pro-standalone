@@ -167,6 +167,38 @@ class BookNormalizationTests(unittest.TestCase):
             "https://img.test/shelf-cover.jpg",
         )
 
+    def test_sync_book_preserves_remote_notebook_sort_for_new_books(self):
+        class FakeApi:
+            def get_bookinfo(self, book_id):
+                return {"bookId": book_id, "title": "Imported"}
+
+            def get_read_info(self, book_id):
+                return {}
+
+        class FakeNotion:
+            author_database_id = None
+            category_database_id = None
+
+            def get_date_relation(self, properties, value):
+                return None
+
+            def create_book_page(self, *, properties, icon):
+                self.properties = properties
+                return {"id": "page-1"}
+
+        notion = FakeNotion()
+        book.sync_book(
+            notion,
+            FakeApi(),
+            {},
+            {},
+            {"b1": {"bookId": "b1", "title": "Imported", "sort": 42}},
+            0,
+            "b1",
+        )
+
+        self.assertEqual(notion.properties["Sort"]["number"], 42)
+
 
 if __name__ == "__main__":
     unittest.main()

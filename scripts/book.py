@@ -315,9 +315,12 @@ def sync_book(notion_helper, weread_api, notion_books, archive_map, books, index
     seed["ISBN"] = seed.get("isbn") or ""
     seed["链接"] = seed.get("deepLink") or utils.get_weread_url(book_id)
     seed["简介"] = seed.get("intro") or ""
-    # Sort is the notes cursor.  weread.py advances it only after the page
-    # blocks and auxiliary note databases have been updated successfully.
-    seed["Sort"] = to_number((existing or {}).get("Sort"), 0)
+    # Sort is the notes cursor. Keep the remote notebook cursor for newly
+    # imported books; weread.py advances it only after the page blocks and
+    # auxiliary note databases have been updated successfully.
+    remote_sort = to_number(books[book_id].get("sort"), 0)
+    existing_sort = to_number((existing or {}).get("Sort"), 0)
+    seed["Sort"] = existing_sort or remote_sort
     seed["封面"] = cover
 
     authors = split_authors(seed.get("author"))
