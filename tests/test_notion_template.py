@@ -98,12 +98,12 @@ class ProTemplateBuilderTests(unittest.TestCase):
                 client, "page", existing, system_page_id="system-page"
             ).ensure()
 
+        self.assertEqual(len(client.created), created_before)
+        self.assertEqual(second["书架"].database_id, first["书架"].database_id)
+
     def test_refuses_to_create_backend_databases_on_dashboard(self):
         with self.assertRaisesRegex(Exception, "NOTION_SYSTEM_PAGE"):
             ProTemplateBuilder(FakeClient(), "dashboard").ensure()
-
-        self.assertEqual(len(client.created), created_before)
-        self.assertEqual(second["书架"].database_id, first["书架"].database_id)
 
 
 if __name__ == "__main__":
