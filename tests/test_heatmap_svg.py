@@ -20,6 +20,9 @@ class HeatmapSvgTests(unittest.TestCase):
         self.assertTrue(svg.startswith('<?xml version="1.0"'))
         self.assertEqual(svg.count("data-date="), 366)
         self.assertIn("我 &lt; 读书", svg)
+        self.assertIn("2024：0小时35分钟", svg)
+        self.assertIn("阅读 2 天", svg)
+        self.assertIn("最长连续 2 天", svg)
         self.assertIn(
             'fill="#ace7ae" data-date="2024-01-01" data-seconds="300"', svg
         )

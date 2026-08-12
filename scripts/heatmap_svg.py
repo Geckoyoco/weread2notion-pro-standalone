@@ -74,6 +74,23 @@ def _duration_text(seconds: int) -> str:
     return f"{seconds} 秒"
 
 
+def _summary(daily: Mapping[date, int], year: int) -> str:
+    total = sum(daily.values())
+    hours, remainder = divmod(total, 3600)
+    minutes = remainder // 60
+    active_days = {day for day, seconds in daily.items() if seconds > 0}
+    longest = current = 0
+    previous = None
+    for day in sorted(active_days):
+        current = current + 1 if previous and day == previous + timedelta(days=1) else 1
+        longest = max(longest, current)
+        previous = day
+    return (
+        f"{year}：{hours}小时{minutes}分钟  ·  阅读 {len(active_days)} 天"
+        f"  ·  最长连续 {longest} 天"
+    )
+
+
 def render_heatmap(
     read_times: Mapping[object, object],
     year: int,
@@ -99,7 +116,7 @@ def render_heatmap(
     gap = 3
     step = cell + gap
     left = 38
-    top = 48
+    top = 76
     right = 22
     bottom = 42
     width = left + week_count * step + right
@@ -125,8 +142,15 @@ def render_heatmap(
             ".label{font:10px -apple-system,BlinkMacSystemFont,"
             "\"Segoe UI\",sans-serif}"
         ),
+        (
+            ".summary{font:11px -apple-system,BlinkMacSystemFont,"
+            "\"Segoe UI\",sans-serif}"
+        ),
         "</style>",
         f'<text class="title" x="12" y="22" fill="{text_color}">{escape(heading)}</text>',
+        f'<text class="summary" x="12" y="43" fill="{text_color}">{escape(_summary(daily, year))}</text>',
+        f'<rect x="{width - 70}" y="9" width="56" height="24" rx="6" fill="#f6f7f9"/>',
+        f'<text class="label" x="{width - 52}" y="25" fill="{text_color}">{year}</text>',
     ]
 
     month_names = ("1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月")

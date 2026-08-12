@@ -27,8 +27,29 @@ class BookNormalizationTests(unittest.TestCase):
     def test_reading_status_requires_the_gateway_finished_state(self):
         self.assertEqual(book.reading_status(1, 0, 0), "想读")
         self.assertEqual(book.reading_status(2, 0.01, 0), "在读")
-        self.assertEqual(book.reading_status(2, 1, 3600), "在读")
+        self.assertEqual(book.reading_status(2, 1, 3600), "已读")
         self.assertEqual(book.reading_status(4, 1, 3600), "已读")
+
+    def test_completed_book_is_not_downgraded_by_empty_gateway_progress(self):
+        progress = book.preserve_completed_progress(
+            {"status": "已读", "progress": 1, "readingTime": 600},
+            {
+                "readingProgress": 0,
+                "readingTime": 0,
+                "markedStatus": 1,
+                "lastReadingDate": 1_783_965_981,
+            },
+        )
+        self.assertEqual(progress["readingProgress"], 100)
+        self.assertEqual(progress["markedStatus"], 4)
+        self.assertEqual(progress["readingTime"], 600)
+
+    def test_active_gateway_progress_can_update_completed_book(self):
+        progress = book.preserve_completed_progress(
+            {"status": "已读", "progress": 1},
+            {"readingProgress": 80, "readingTime": 3600, "markedStatus": 2},
+        )
+        self.assertEqual(progress["readingProgress"], 80)
 
     def test_normalize_timestamp_accepts_milliseconds(self):
         self.assertEqual(book.normalize_timestamp(1_700_000_000_000), 1_700_000_000)
@@ -131,6 +152,7 @@ class BookNormalizationTests(unittest.TestCase):
         class FakeNotion:
             author_database_id = None
             category_database_id = None
+            legacy_book_database = False
 
             def __init__(self):
                 self.properties = None
@@ -178,6 +200,7 @@ class BookNormalizationTests(unittest.TestCase):
         class FakeNotion:
             author_database_id = None
             category_database_id = None
+            legacy_book_database = False
 
             def get_date_relation(self, properties, value):
                 return None

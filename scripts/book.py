@@ -84,6 +84,43 @@ def reading_status(marked_status, progress, reading_time):
     return "想读"
 
 
+def preserve_completed_progress(existing, remote_progress):
+    """Keep a confirmed completion when Gateway returns an empty progress row.
+
+    Imported/local books occasionally have a valid Notion status but Gateway
+    reports zero progress and zero reading time.  That response must not
+    downgrade a book the user has already marked as completed.
+    """
+
+    if not existing:
+        return remote_progress
+    completed = existing.get("status") in {"已读", "读完"} or to_number(
+        existing.get("progress"), 0
+    ) >= 1
+    if not completed:
+        return remote_progress
+
+    progress = dict(remote_progress or {})
+    has_remote_reading = any(
+        (
+            to_number(progress.get("readingProgress"), 0) > 0,
+            to_number(progress.get("readingTime"), 0) > 0,
+            to_number(progress.get("finishedDate"), 0) > 0,
+            to_number(progress.get("finishTime"), 0) > 0,
+            str(progress.get("isStartReading") or "").strip().lower()
+            in {"1", "true", "yes"},
+        )
+    )
+    if has_remote_reading:
+        return progress
+
+    progress["readingProgress"] = 100
+    progress["markedStatus"] = 4
+    if existing.get("readingTime") is not None:
+        progress["readingTime"] = existing.get("readingTime")
+    return progress
+
+
 def normalize_categories(value):
     if not value:
         return []
@@ -335,7 +372,9 @@ def sync_book(notion_helper, weread_api, notion_books, archive_map, books, index
             if value is not None and value != "" and value != [] and value != {}
         }
     )
-    progress = weread_api.get_read_info(book_id) or {}
+    progress = preserve_completed_progress(
+        existing, weread_api.get_read_info(book_id) or {}
+    )
     seed.update({key: value for key, value in progress.items() if value is not None})
 
     seed["书架分类"] = archive_map.get(book_id)
