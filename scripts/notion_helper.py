@@ -721,7 +721,7 @@ class NotionHelper:
             bookId = self._safe_property_value(properties, "BookId")
             if not bookId:
                 continue
-            if self.legacy_book_database:
+            if getattr(self, "legacy_book_database", False):
                 books_dict[bookId] = {
                     "pageId": result.get("id"),
                     "readingTime": self._safe_property_value(properties, "ReadingTime"),
