@@ -11,8 +11,8 @@ on:
     - cron: "43 */6 * * *"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: heatmap-assets-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write

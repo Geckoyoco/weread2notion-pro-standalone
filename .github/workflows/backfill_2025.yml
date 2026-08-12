@@ -1,0 +1,54 @@
+name: Backfill 2025 heatmap
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
+
+concurrency:
+  group: heatmap-assets-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    name: Restore 2025 daily reading data
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      WEREAD_API_KEY: ${{ secrets.WEREAD_API_KEY }}
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      NOTION_PAGE: ${{ secrets.NOTION_PAGE }}
+      BOOK_DATABASE_NAME: ${{ vars.BOOK_DATABASE_NAME }}
+      CHAPTER_DATABASE_NAME: ${{ vars.CHAPTER_DATABASE_NAME }}
+      READ_DATABASE_NAME: ${{ vars.READ_DATABASE_NAME }}
+      YEAR: "2025"
+      REF: ${{ github.ref }}
+      REPOSITORY: ${{ github.repository }}
+      HEATMAP_BACKGROUND: ${{ vars.HEATMAP_BACKGROUND || '#FFFFFF' }}
+      HEATMAP_EMPTY: ${{ vars.HEATMAP_EMPTY || '#EBEDF0' }}
+      HEATMAP_LOW: ${{ vars.HEATMAP_LOW || '#ACE7AE' }}
+      HEATMAP_MEDIUM: ${{ vars.HEATMAP_MEDIUM || '#69C16E' }}
+      HEATMAP_HIGH: ${{ vars.HEATMAP_HIGH || '#216E39' }}
+      HEATMAP_TEXT: ${{ vars.HEATMAP_TEXT || '#24292F' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Restore 2025 heatmap
+        run: python -u scripts/read_time.py --skip-heatmap-update
+      - name: Publish restored asset
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add OUT_FOLDER/weread-2025.svg
+          git diff --cached --quiet || git commit -m "chore: restore 2025 reading heatmap"
+          git push
