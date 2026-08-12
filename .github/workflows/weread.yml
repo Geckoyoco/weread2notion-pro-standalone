@@ -25,12 +25,9 @@ jobs:
       NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
       NOTION_PAGE: ${{ secrets.NOTION_PAGE }}
       NOTION_SYSTEM_PAGE: ${{ vars.NOTION_SYSTEM_PAGE }}
-      HEATMAP_BLOCK_ID: ${{ secrets.HEATMAP_BLOCK_ID }}
       BOOK_DATABASE_NAME: ${{ vars.BOOK_DATABASE_NAME }}
       CHAPTER_DATABASE_NAME: ${{ vars.CHAPTER_DATABASE_NAME }}
       READ_DATABASE_NAME: ${{ vars.READ_DATABASE_NAME }}
-      REF: ${{ github.ref }}
-      REPOSITORY: ${{ github.repository }}
       FULL_SYNC: ${{ inputs.full_sync && 'true' || 'false' }}
       FULL_SYNC_NOTES: ${{ inputs.full_sync && 'true' || 'false' }}
       ALLOW_REMOTE_DELETIONS: ${{ vars.ALLOW_REMOTE_DELETIONS || 'false' }}

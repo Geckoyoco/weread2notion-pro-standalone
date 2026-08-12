@@ -1,7 +1,5 @@
-from datetime import date, datetime
 import os
-from pathlib import Path
-from tempfile import TemporaryDirectory
+from datetime import date, datetime
 from unittest import TestCase, main
 from unittest.mock import patch
 
@@ -13,7 +11,6 @@ from scripts.read_time import (
     normalize_daily_read_times,
     palette_from_env,
     raw_heatmap_url,
-    remove_stale_heatmaps,
     sync_statistics,
     update_heatmap_link,
 )
@@ -228,15 +225,26 @@ class ReadTimeTests(TestCase):
             ("heatmap-block", f"{dashboard}?v=df36e0334b8a"),
         )
 
-    def test_palette_prefers_new_names_and_keeps_legacy_fallback(self):
+    def test_missing_heatmap_block_is_not_recreated(self):
+        class Helper:
+            heatmap_block_id = None
+
+        with patch.dict(
+            os.environ,
+            {"HEATMAP_DASHBOARD_URL": "https://example.com/title-inline/"},
+            clear=True,
+        ):
+            self.assertFalse(
+                update_heatmap_link(Helper(), "OUT_FOLDER/weread-2026.svg")
+            )
+
+    def test_palette_uses_current_environment_names(self):
         with patch.dict(
             os.environ,
             {
                 "HEATMAP_BACKGROUND": "#111111",
-                "BACKGROUND_COLOR": "#ffffff",
-                "DOM_COLOR": "#222222",
+                "HEATMAP_EMPTY": "#222222",
                 "HEATMAP_HIGH": "#444444",
-                "SPECIAL_COLOR2": "#333333",
             },
             clear=True,
         ):
@@ -245,37 +253,6 @@ class ReadTimeTests(TestCase):
         self.assertEqual(palette.background, "#111111")
         self.assertEqual(palette.empty, "#222222")
         self.assertEqual(palette.high, "#444444")
-
-    def test_yearly_heatmaps_are_preserved_for_dashboard_switching(self):
-        with TemporaryDirectory() as directory:
-            root = Path(directory)
-            output_folder = root / "OUT_FOLDER"
-            nested = output_folder / "nested"
-            output_folder.mkdir()
-            nested.mkdir()
-            target = output_folder / "weread-2026.svg"
-            old = output_folder / "old.svg"
-            keep_image = output_folder / "cover.png"
-            keep_nested = nested / "nested.svg"
-            keep_outside = root / "outside.svg"
-            for path in (target, old, keep_image, keep_nested, keep_outside):
-                path.write_text("x", encoding="utf-8")
-
-            removed = remove_stale_heatmaps(target)
-
-            self.assertEqual(removed, [])
-            self.assertTrue(target.exists())
-            self.assertTrue(old.exists())
-            self.assertTrue(keep_image.exists())
-            self.assertTrue(keep_nested.exists())
-            self.assertTrue(keep_outside.exists())
-
-            other_folder = root / "other"
-            other_folder.mkdir()
-            untouched = other_folder / "old.svg"
-            untouched.write_text("x", encoding="utf-8")
-            self.assertEqual(remove_stale_heatmaps(other_folder / "new.svg"), [])
-            self.assertTrue(untouched.exists())
 
     def test_existing_noncanonical_day_timestamp_is_not_double_counted(self):
         canonical = day_timestamp(date(2025, 1, 1))

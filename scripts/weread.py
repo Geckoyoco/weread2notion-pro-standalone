@@ -1,8 +1,6 @@
 import os
 
 from notion_helper import NotionHelper
-from weread_api import WeReadApi
-
 from utils import (
     get_callout,
     get_heading,
@@ -12,7 +10,7 @@ from utils import (
     get_rich_text_from_result,
     get_table_of_contents,
 )
-
+from weread_api import WeReadApi
 
 # These clients are initialized by ``main`` and shared by the small sync
 # helpers below. Keeping the names explicit also makes the helpers easy to

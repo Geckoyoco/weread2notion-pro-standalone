@@ -1,20 +1,20 @@
 import calendar
-from datetime import datetime
-from datetime import timedelta
 import hashlib
 import re
+from datetime import datetime, timedelta
+
+import pendulum
 from config import (
-    RICH_TEXT,
-    URL,
-    RELATION,
-    NUMBER,
     DATE,
     FILES,
+    NUMBER,
+    RELATION,
+    RICH_TEXT,
+    SELECT,
     STATUS,
     TITLE,
-    SELECT,
+    URL,
 )
-import pendulum
 
 MAX_LENGTH = (
     1024  # NOTION 2000个字符限制https://developers.notion.com/reference/request-limits
@@ -324,7 +324,7 @@ def calculate_book_str_id(book_id):
 
 def transform_id(book_id):
     id_length = len(book_id)
-    if re.match("^\d*$", book_id):
+    if re.match(r"^\d*$", book_id):
         ary = []
         for i in range(0, id_length, 9):
             ary.append(format(int(book_id[i : min(i + 9, id_length)]), "x"))

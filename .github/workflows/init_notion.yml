@@ -22,7 +22,6 @@ jobs:
       BOOK_DATABASE_NAME: ${{ vars.BOOK_DATABASE_NAME }}
       CHAPTER_DATABASE_NAME: ${{ vars.CHAPTER_DATABASE_NAME }}
       READ_DATABASE_NAME: ${{ vars.READ_DATABASE_NAME }}
-      INITIALIZE_NOTION_TEMPLATE: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4

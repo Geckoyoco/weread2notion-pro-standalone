@@ -443,32 +443,22 @@ def sync_statistics(notion_helper, read_times: Mapping[int, int]) -> dict[str, i
     }
 
 
-def _env_color(primary: str, legacy: str, default: str) -> str:
-    return os.getenv(primary) or os.getenv(legacy) or default
-
-
 def palette_from_env() -> HeatmapPalette:
     return HeatmapPalette(
-        background=_env_color("HEATMAP_BACKGROUND", "BACKGROUND_COLOR", "#ffffff"),
-        empty=_env_color("HEATMAP_EMPTY", "DOM_COLOR", "#ebedf0"),
-        low=_env_color("HEATMAP_LOW", "TRACK_COLOR", "#ace7ae"),
-        medium=_env_color("HEATMAP_MEDIUM", "SPECIAL_COLOR1", "#69c16e"),
-        high=_env_color("HEATMAP_HIGH", "SPECIAL_COLOR2", "#549f57"),
-        text=_env_color("HEATMAP_TEXT", "TEXT_COLOR", "#24292f"),
+        background=os.getenv("HEATMAP_BACKGROUND") or "#ffffff",
+        empty=os.getenv("HEATMAP_EMPTY") or "#ebedf0",
+        low=os.getenv("HEATMAP_LOW") or "#ace7ae",
+        medium=os.getenv("HEATMAP_MEDIUM") or "#69c16e",
+        high=os.getenv("HEATMAP_HIGH") or "#549f57",
+        text=os.getenv("HEATMAP_TEXT") or "#24292f",
     )
 
 
-def remove_stale_heatmaps(output: str | Path) -> list[Path]:
-    """Keep yearly SVG siblings so the dashboard can switch between years."""
-
-    return []
-
-
 def raw_heatmap_url(output: str | Path, version: str | int | None = None) -> str | None:
-    repository = (os.getenv("GITHUB_REPOSITORY") or os.getenv("REPOSITORY") or "").strip()
+    repository = (os.getenv("GITHUB_REPOSITORY") or "").strip()
     ref_name = (os.getenv("GITHUB_REF_NAME") or "").strip()
     if not ref_name:
-        ref = (os.getenv("REF") or os.getenv("GITHUB_REF") or "").strip()
+        ref = (os.getenv("GITHUB_REF") or "").strip()
         ref_name = ref.removeprefix("refs/heads/")
     if not repository or not ref_name:
         return None
@@ -524,15 +514,10 @@ def update_heatmap_link(notion_helper, output: str | Path) -> bool:
     image_url = dashboard_url or raw_heatmap_url(output)
     if notion_helper.heatmap_block_id and image_url:
         notion_helper.update_heatmap(notion_helper.heatmap_block_id, image_url)
-        print(f"Notion 热力图已更新为公开 SVG: {image_url}")
-        return True
-    create_heatmap = getattr(notion_helper, "create_heatmap", None)
-    if image_url and callable(create_heatmap):
-        create_heatmap(image_url)
-        print(f"Notion 热力图图片块已创建: {image_url}")
+        print(f"Notion 热力图嵌入链接已更新: {image_url}")
         return True
     if image_url:
-        print(f"未找到热力图占位块；SVG 可直接使用: {image_url}")
+        print("未找到现有热力图嵌入块；为避免主页面出现重复内容，已跳过更新。")
     else:
         print("未检测到仓库与分支环境变量，已跳过 Notion 热力图链接更新。")
     return False
@@ -564,9 +549,6 @@ def main(argv=None) -> None:
     read_times = include_today(collect_daily_read_times(weread_api, year), year)
 
     title = os.getenv("HEATMAP_TITLE") or os.getenv("NAME") or f"微信读书 · {year}"
-    removed = remove_stale_heatmaps(output)
-    if removed:
-        print(f"已清理 {len(removed)} 个旧 SVG 热力图。")
     write_heatmap(
         output,
         read_times,

@@ -7,7 +7,6 @@ from unittest.mock import Mock, call, patch
 
 import pendulum
 
-
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
@@ -179,38 +178,6 @@ class NotionDataSourceTests(unittest.TestCase):
                 "external": {"url": "https://example.com/OUT_FOLDER/map.svg"},
             },
         )
-
-    def test_creates_missing_heatmap_image_on_parent_page(self):
-        helper = make_helper()
-        helper.page_id = "root"
-        helper.append_blocks = Mock(
-            return_value={"results": [{"id": "new-heatmap"}]}
-        )
-
-        block_id = helper.create_heatmap(
-            "https://raw.githubusercontent.com/u/r/main/OUT_FOLDER/weread.svg"
-        )
-
-        self.assertEqual(block_id, "new-heatmap")
-        self.assertEqual(helper.heatmap_block_id, "new-heatmap")
-        children = helper.append_blocks.call_args.args[1]
-        self.assertEqual(children[0]["type"], "image")
-
-    def test_creates_missing_dashboard_as_embed(self):
-        helper = make_helper()
-        helper.page_id = "root"
-        helper.append_blocks = Mock(
-            return_value={"results": [{"id": "new-heatmap"}]}
-        )
-
-        block_id = helper.create_heatmap(
-            "https://example.github.io/project/title-inline/?v=abc"
-        )
-
-        self.assertEqual(block_id, "new-heatmap")
-        children = helper.append_blocks.call_args.args[1]
-        self.assertEqual(children[0]["type"], "embed")
-        self.assertEqual(helper._heatmap_block_type, "embed")
 
     def test_append_after_uses_2026_position_object(self):
         helper = make_helper()

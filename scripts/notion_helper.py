@@ -5,9 +5,10 @@ import time
 from urllib.parse import urlparse
 
 import pendulum
+from dotenv import load_dotenv
 from notion_client import Client
 from retrying import retry
-from dotenv import load_dotenv
+
 try:
     from .notion_template import ensure_pro_template
 except ImportError:
@@ -20,11 +21,11 @@ from utils import (
     get_first_and_last_day_of_year,
     get_icon,
     get_number,
+    get_property_value,
     get_relation,
     get_rich_text,
     get_title,
     timestamp_to_date,
-    get_property_value,
 )
 
 load_dotenv()
@@ -33,18 +34,14 @@ USER_ICON_URL = "https://www.notion.so/icons/user-circle-filled_gray.svg"
 TARGET_ICON_URL = "https://www.notion.so/icons/target_red.svg"
 BOOKMARK_ICON_URL = "https://www.notion.so/icons/bookmark_gray.svg"
 NOTION_VERSION = "2026-03-11"
+DEFAULT_DATABASE_NAMES = {
+    "BOOK_DATABASE_NAME": "书架",
+    "CHAPTER_DATABASE_NAME": "章节",
+    "READ_DATABASE_NAME": "阅读记录",
+}
 
 
 class NotionHelper:
-    database_name_dict = {
-        "BOOK_DATABASE_NAME": "书架",
-        "CHAPTER_DATABASE_NAME": "章节",
-        "READ_DATABASE_NAME": "阅读记录",
-    }
-    database_id_dict = {}
-    heatmap_block_id = None
-    property_dict = {}
-
     def __init__(self):
         notion_token = (os.getenv("NOTION_TOKEN") or "").strip()
         if not notion_token:
@@ -61,13 +58,10 @@ class NotionHelper:
         self._data_source_schema_cache = {}
         self._searched_block_ids = set()
         self._heatmap_block_type = None
-        # These used to be class-level mutable dictionaries.  Keep the public
-        # attributes, but isolate every helper instance so tests and multiple
-        # syncs in one process cannot leak state into each other.
-        self.database_name_dict = dict(type(self).database_name_dict)
+        self.database_name_dict = dict(DEFAULT_DATABASE_NAMES)
         self.database_id_dict = {}
         self.property_dict = {}
-        self.heatmap_block_id = (os.getenv("HEATMAP_BLOCK_ID") or "").strip() or None
+        self.heatmap_block_id = None
         self.page_id = self.extract_page_id(os.getenv("NOTION_PAGE"))
         system_page = (os.getenv("NOTION_SYSTEM_PAGE") or "").strip()
         self.system_page_id = self.extract_page_id(system_page) if system_page else None
@@ -85,14 +79,8 @@ class NotionHelper:
                 if discovered_name.replace("📖", "").strip() == normalized_book_name:
                     self.database_id_dict[book_name] = discovered_id
                     break
-        initialize_requested = os.getenv(
-            "INITIALIZE_NOTION_TEMPLATE", ""
-        ).lower() in {"1", "true", "yes"}
         if not self.database_id_dict.get(book_name):
-            if not self.database_id_dict.get(book_name):
-                print(
-                    "没有检测到旧 Pro 模板，开始在指定页面自动创建自有 Pro 数据库。"
-                )
+            print("没有检测到书籍主库，开始创建自有 Pro 数据库。")
             created = ensure_pro_template(
                 self.client,
                 self.page_id,
@@ -105,8 +93,6 @@ class NotionHelper:
             self.database_id_dict.update(
                 {name: ref.database_id for name, ref in created.items()}
             )
-        elif initialize_requested:
-            print("已找到书籍主库，仅验证现有结构，不再创建后台数据库。")
         self.book_database_id = self.resolve_data_source_id(
             self.database_id_dict.get(
                 self.database_name_dict.get("BOOK_DATABASE_NAME")
@@ -305,7 +291,7 @@ class NotionHelper:
         if match:
             return match.group(0)
         else:
-            raise Exception(f"获取NotionID失败，请检查输入的Url是否正确")
+            raise Exception("获取NotionID失败，请检查输入的Url是否正确")
 
     @staticmethod
     def _block_url(block):
@@ -461,32 +447,6 @@ class NotionHelper:
         raise Exception(
             f"热力图 block {block_id} 的类型是 {block_type!r}，仅支持 embed 或 image"
         )
-
-    def create_heatmap(self, url):
-        """Append the heatmap using the block type required by its URL."""
-        is_dashboard = "/title-inline/" in url.lower()
-        block = (
-            {"object": "block", "type": "embed", "embed": {"url": url}}
-            if is_dashboard
-            else {
-                "object": "block",
-                "type": "image",
-                "image": {
-                    "type": "external",
-                    "external": {"url": url},
-                },
-            }
-        )
-        response = self.append_blocks(
-            self.page_id,
-            [block],
-        )
-        results = response.get("results") or []
-        if not results or not results[0].get("id"):
-            raise Exception("Notion 创建热力图图片块后没有返回 block ID")
-        self.heatmap_block_id = results[0]["id"]
-        self._heatmap_block_type = block["type"]
-        return self.heatmap_block_id
 
     def get_week_relation_id(self, date):
         year = date.isocalendar().year

@@ -1,11 +1,10 @@
 import os
-from pathlib import Path
 import sys
 import types
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import patch
-
 
 try:
     import requests  # noqa: F401

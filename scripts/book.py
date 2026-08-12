@@ -5,13 +5,11 @@ import re
 
 import pendulum
 import requests
-from retrying import retry
-
+import utils
 from config import book_properties_type_dict, tz
 from notion_helper import NotionHelper
+from retrying import retry
 from weread_api import WeReadApi
-import utils
-
 
 TAG_ICON_URL = "https://www.notion.so/icons/tag_gray.svg"
 USER_ICON_URL = "https://www.notion.so/icons/user-circle-filled_gray.svg"

@@ -13,7 +13,6 @@ from html import escape
 from pathlib import Path
 from typing import Mapping
 
-
 SHANGHAI = timezone(timedelta(hours=8))
 
 

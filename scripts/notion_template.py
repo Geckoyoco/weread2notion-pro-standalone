@@ -14,7 +14,6 @@ from typing import Any
 
 from retrying import retry
 
-
 DATABASE_ICONS = {
     "书架": "📚",
     "读书笔记": "💭",

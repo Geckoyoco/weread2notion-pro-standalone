@@ -1,8 +1,8 @@
+import unittest
+import xml.etree.ElementTree as ET
 from datetime import date, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
-import xml.etree.ElementTree as ET
 
 from scripts.heatmap_svg import SHANGHAI, HeatmapPalette, render_heatmap, write_heatmap
 
