@@ -137,10 +137,6 @@ def render_heatmap(
         f'<rect width="100%" height="100%" rx="8" fill="{background}"/>',
         "<style>",
         (
-            ".title{font:600 15px -apple-system,BlinkMacSystemFont,"
-            "\"Segoe UI\",sans-serif}"
-        ),
-        (
             ".label{font:10px -apple-system,BlinkMacSystemFont,"
             "\"Segoe UI\",sans-serif}"
         ),
@@ -149,8 +145,7 @@ def render_heatmap(
             "\"Segoe UI\",sans-serif}"
         ),
         "</style>",
-        f'<text class="title" x="12" y="22" fill="{text_color}">{escape(heading)}</text>',
-        f'<text class="summary" x="12" y="43" fill="{text_color}">{escape(_summary(daily, year))}</text>',
+        f'<text class="summary" x="12" y="28" fill="{text_color}">{escape(_summary(daily, year))}</text>',
     ]
 
     month_names = ("1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月")
