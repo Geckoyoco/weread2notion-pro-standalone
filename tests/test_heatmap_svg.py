@@ -27,6 +27,7 @@ class HeatmapSvgTests(unittest.TestCase):
         self.assertIn('width="100%"', svg)
         self.assertIn('preserveAspectRatio="xMinYMin meet"', svg)
         self.assertIn('data-summary="2024：0小时35分钟', svg)
+        self.assertIn('<text class="summary" x="8" y="19"', svg)
         self.assertIn('"PingFang SC","Microsoft YaHei"', svg)
         self.assertIn(
             'fill="#ace7ae" data-date="2024-01-01" data-seconds="300"', svg

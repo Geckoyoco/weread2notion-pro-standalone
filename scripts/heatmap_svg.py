@@ -118,7 +118,7 @@ def render_heatmap(
     gap = 3
     step = cell + gap
     left = 34
-    top = 27
+    top = 52
     right = 10
     bottom = 29
     width = left + week_count * step + right
@@ -148,6 +148,7 @@ def render_heatmap(
             "-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}"
         ),
         "</style>",
+        f'<text class="summary" x="8" y="19" fill="{text_color}">{escape(summary)}</text>',
     ]
 
     month_names = ("1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月")
