@@ -148,7 +148,7 @@ def render_heatmap(
             "-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}"
         ),
         "</style>",
-        f'<text class="summary" x="8" y="19" fill="{text_color}">{escape(summary)}</text>',
+        f'<text class="summary" x="0" y="14" fill="{text_color}">{escape(summary)}</text>',
     ]
 
     month_names = ("1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月")
