@@ -397,15 +397,19 @@ def main():
     print(f"书架共 {len(books)} 本，本次需更新 {len(selected)} 本。")
     selected_books = {book_id: books[book_id] for book_id in selected}
     for index, book_id in enumerate(selected):
-        sync_book(
-            notion_helper,
-            weread_api,
-            notion_books,
-            archive_map,
-            selected_books,
-            index,
-            book_id,
-        )
+        try:
+            sync_book(
+                notion_helper,
+                weread_api,
+                notion_books,
+                archive_map,
+                selected_books,
+                index,
+                book_id,
+            )
+        except Exception as error:
+            title = books[book_id].get("title") or book_id
+            print(f"同步《{title}》失败，跳过本次，继续后续书籍：{error}")
 
 
 if __name__ == "__main__":
