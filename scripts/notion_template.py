@@ -1,4 +1,4 @@
-"""Create a self-owned WeRead2Notion Pro workspace on an empty Notion page.
+"""Create a self-owned WeRead2Notion Pro workspace below a system-data page.
 
 The original public Pro template is no longer available.  This module keeps
 the repository self-contained by creating the databases and relations that
@@ -28,7 +28,6 @@ DATABASE_ICONS = {
     "月": "📆",
     "年": "🎯",
 }
-
 
 def _relation(data_source_id: str) -> dict[str, Any]:
     return {
@@ -73,6 +72,7 @@ class ProTemplateBuilder:
         book_name: str = "书架",
         chapter_name: str = "章节",
         read_name: str = "阅读记录",
+        system_page_id: str | None = None,
     ):
         self.client = client
         self.page_id = page_id
@@ -80,6 +80,7 @@ class ProTemplateBuilder:
         self.book_name = book_name
         self.chapter_name = chapter_name
         self.read_name = read_name
+        self.system_page_id = system_page_id
         self.refs: dict[str, DatabaseRef] = {}
 
     def _source_for_database(self, database_id: str) -> str:
@@ -99,7 +100,10 @@ class ProTemplateBuilder:
             path="databases",
             method="POST",
             body={
-                "parent": {"type": "page_id", "page_id": self.page_id},
+                "parent": {
+                    "type": "page_id",
+                    "page_id": self.system_page_id or self.page_id,
+                },
                 "title": _text(name),
                 "is_inline": True,
                 "icon": {
@@ -157,6 +161,13 @@ class ProTemplateBuilder:
         }
 
     def ensure(self) -> dict[str, DatabaseRef]:
+        # Backend databases must never be created inline on the user dashboard.
+        # Existing databases are reused wherever they currently live; only new
+        # databases are placed below the dedicated system-data page.
+        if not self.system_page_id:
+            raise Exception(
+                "缺少 NOTION_SYSTEM_PAGE；为避免污染主页面，后台数据库不会创建。"
+            )
         year = self._ensure("年", self._period_properties())
         month = self._ensure("月", self._period_properties())
         week = self._ensure("周", self._period_properties())

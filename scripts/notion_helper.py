@@ -69,11 +69,15 @@ class NotionHelper:
         self.property_dict = {}
         self.heatmap_block_id = (os.getenv("HEATMAP_BLOCK_ID") or "").strip() or None
         self.page_id = self.extract_page_id(os.getenv("NOTION_PAGE"))
+        system_page = (os.getenv("NOTION_SYSTEM_PAGE") or "").strip()
+        self.system_page_id = self.extract_page_id(system_page) if system_page else None
         for key in self.database_name_dict.keys():
             value = os.getenv(key)
             if value:
                 self.database_name_dict[key] = value
         self.search_database(self.page_id)
+        if self.system_page_id and self.system_page_id != self.page_id:
+            self.search_database(self.system_page_id)
         book_name = self.database_name_dict.get("BOOK_DATABASE_NAME")
         if not self.database_id_dict.get(book_name):
             normalized_book_name = (book_name or "").replace("📖", "").strip()
@@ -84,13 +88,11 @@ class NotionHelper:
         initialize_requested = os.getenv(
             "INITIALIZE_NOTION_TEMPLATE", ""
         ).lower() in {"1", "true", "yes"}
-        if not self.database_id_dict.get(book_name) or initialize_requested:
+        if not self.database_id_dict.get(book_name):
             if not self.database_id_dict.get(book_name):
                 print(
                     "没有检测到旧 Pro 模板，开始在指定页面自动创建自有 Pro 数据库。"
                 )
-            else:
-                print("正在检查并补全 Notion Pro 数据库结构。")
             created = ensure_pro_template(
                 self.client,
                 self.page_id,
@@ -98,10 +100,13 @@ class NotionHelper:
                 book_name=book_name,
                 chapter_name=self.database_name_dict.get("CHAPTER_DATABASE_NAME"),
                 read_name=self.database_name_dict.get("READ_DATABASE_NAME"),
+                system_page_id=self.system_page_id,
             )
             self.database_id_dict.update(
                 {name: ref.database_id for name, ref in created.items()}
             )
+        elif initialize_requested:
+            print("已找到书籍主库，仅验证现有结构，不再创建后台数据库。")
         self.book_database_id = self.resolve_data_source_id(
             self.database_id_dict.get(
                 self.database_name_dict.get("BOOK_DATABASE_NAME")
@@ -410,7 +415,11 @@ class NotionHelper:
                 }
             },
         }
-        parent = {"page_id": self.page_id, "type": "page_id"}
+        if not self.system_page_id:
+            raise Exception(
+                "缺少 NOTION_SYSTEM_PAGE；为避免污染主页面，阅读记录数据库不会创建。"
+            )
+        parent = {"page_id": self.system_page_id, "type": "page_id"}
         response = self.client.request(
             path="databases",
             method="POST",

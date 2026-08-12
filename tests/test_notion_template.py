@@ -42,7 +42,7 @@ class FakeClient:
 class ProTemplateBuilderTests(unittest.TestCase):
     def test_empty_page_creates_complete_relational_schema(self):
         client = FakeClient()
-        builder = ProTemplateBuilder(client, "page")
+        builder = ProTemplateBuilder(client, "page", system_page_id="system-page")
 
         with patch("notion_template.time.sleep"):
             refs = builder.ensure()
@@ -64,6 +64,10 @@ class ProTemplateBuilderTests(unittest.TestCase):
             },
         )
         self.assertEqual(client.created[-1][0], "书架")
+        self.assertEqual(
+            client.created[-1][1]["parent"],
+            {"type": "page_id", "page_id": "system-page"},
+        )
         book_properties = client.created[-1][1]["initial_data_source"]["properties"]
         self.assertEqual(
             book_properties["读书笔记"]["relation"]["data_source_id"],
@@ -83,12 +87,20 @@ class ProTemplateBuilderTests(unittest.TestCase):
     def test_partial_run_reuses_existing_databases(self):
         client = FakeClient()
         with patch("notion_template.time.sleep"):
-            first = ProTemplateBuilder(client, "page").ensure()
+            first = ProTemplateBuilder(
+                client, "page", system_page_id="system-page"
+            ).ensure()
         existing = {name: ref.database_id for name, ref in first.items()}
         created_before = len(client.created)
 
         with patch("notion_template.time.sleep"):
-            second = ProTemplateBuilder(client, "page", existing).ensure()
+            second = ProTemplateBuilder(
+                client, "page", existing, system_page_id="system-page"
+            ).ensure()
+
+    def test_refuses_to_create_backend_databases_on_dashboard(self):
+        with self.assertRaisesRegex(Exception, "NOTION_SYSTEM_PAGE"):
+            ProTemplateBuilder(FakeClient(), "dashboard").ensure()
 
         self.assertEqual(len(client.created), created_before)
         self.assertEqual(second["书架"].database_id, first["书架"].database_id)

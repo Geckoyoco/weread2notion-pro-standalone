@@ -26,6 +26,7 @@ jobs:
       WEREAD_API_KEY: ${{ secrets.WEREAD_API_KEY }}
       NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
       NOTION_PAGE: ${{ secrets.NOTION_PAGE }}
+      NOTION_SYSTEM_PAGE: ${{ vars.NOTION_SYSTEM_PAGE }}
       HEATMAP_BLOCK_ID: ${{ secrets.HEATMAP_BLOCK_ID }}
       BOOK_DATABASE_NAME: ${{ vars.BOOK_DATABASE_NAME }}
       CHAPTER_DATABASE_NAME: ${{ vars.CHAPTER_DATABASE_NAME }}

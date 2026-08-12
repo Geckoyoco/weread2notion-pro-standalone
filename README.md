@@ -25,7 +25,7 @@
 
 在自己的 Notion 工作区新建一个空白页面（例如“微信读书 Pro”）。创建一个拥有读取、插入和更新内容权限的 Notion Internal Integration，并在该空白页面右上角通过 **连接 / Connections** 把页面共享给它。
 
-原作者的公开 Pro 模板已经失效，本仓库不再依赖它。配置 Secret 后运行 **Actions → Initialize Notion Pro → Run workflow**，程序会在空白页面中自动创建书架、笔记、划线、章节、作者、分类、阅读记录及日/周/月/年统计数据库。创建中断时可以安全地重新运行。
+原作者的公开 Pro 模板已经失效，本仓库不再依赖它。后台数据库只允许创建在 `NOTION_SYSTEM_PAGE` 指定的独立“系统数据”页面，主页面仅放面向使用者的关联视图。配置后运行 **Actions → Initialize Notion Pro → Run workflow**；重复运行只验证现有结构，不会在主页面新增数据库。
 
 已有旧 Pro 模板仍可继续使用，不会被自动重建。
 
