@@ -201,7 +201,7 @@ class ReadTimeTests(TestCase):
         self.assertEqual(palette.empty, "#222222")
         self.assertEqual(palette.high, "#444444")
 
-    def test_stale_cleanup_is_limited_to_sibling_svgs_in_out_folder(self):
+    def test_yearly_heatmaps_are_preserved_for_dashboard_switching(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
             output_folder = root / "OUT_FOLDER"
@@ -218,9 +218,9 @@ class ReadTimeTests(TestCase):
 
             removed = remove_stale_heatmaps(target)
 
-            self.assertEqual(removed, [old])
+            self.assertEqual(removed, [])
             self.assertTrue(target.exists())
-            self.assertFalse(old.exists())
+            self.assertTrue(old.exists())
             self.assertTrue(keep_image.exists())
             self.assertTrue(keep_nested.exists())
             self.assertTrue(keep_outside.exists())

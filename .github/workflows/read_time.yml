@@ -16,6 +16,8 @@ concurrency:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   statistics:
@@ -60,3 +62,9 @@ jobs:
           git push
       - name: Update Notion heatmap link
         run: python -u scripts/read_time.py --heatmap-only
+      - name: Upload interactive heatmap
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: OUT_FOLDER
+      - name: Deploy interactive heatmap
+        uses: actions/deploy-pages@v4

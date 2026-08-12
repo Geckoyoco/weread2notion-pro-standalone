@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>微信读书年度热力图</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;background:#fff;color:#24292f;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .card{width:100%;max-width:920px;margin:0 auto;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px 14px;background:#fff}
+    .bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+    h1{font-size:18px;line-height:1.2;margin:0;font-weight:700}
+    select{appearance:auto;border:0;border-radius:7px;background:#f6f7f9;color:#59636e;font-weight:600;padding:7px 10px;cursor:pointer}
+    img{display:block;width:100%;height:auto;min-height:210px;object-fit:contain}
+    @media(max-width:640px){.card{border-radius:0;padding:14px 10px}.bar{padding:0 4px}h1{font-size:16px}}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="bar"><h1>年度阅读</h1><select id="year" aria-label="选择年份"><option>2026</option><option>2025</option></select></div>
+    <img id="heatmap" src="weread-2026.svg" alt="2026 年微信读书热力图">
+  </main>
+  <script>
+    const select=document.querySelector('#year');
+    const heatmap=document.querySelector('#heatmap');
+    const requested=new URLSearchParams(location.search).get('year');
+    if([...select.options].some(o=>o.value===requested)) select.value=requested;
+    function show(){const y=select.value;heatmap.src=`weread-${y}.svg?v=${Date.now()}`;heatmap.alt=`${y} 年微信读书热力图`;history.replaceState(null,'',`?year=${y}`)}
+    select.addEventListener('change',show);show();
+  </script>
+</body>
+</html>

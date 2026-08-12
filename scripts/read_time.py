@@ -459,22 +459,9 @@ def palette_from_env() -> HeatmapPalette:
 
 
 def remove_stale_heatmaps(output: str | Path) -> list[Path]:
-    """Remove only sibling SVG files in the explicit ``OUT_FOLDER`` directory."""
+    """Keep yearly SVG siblings so the dashboard can switch between years."""
 
-    target = Path(output)
-    folder = target.parent
-    if folder.name != "OUT_FOLDER" or not folder.is_dir() or folder.is_symlink():
-        return []
-    removed = []
-    target_path = target.resolve()
-    for candidate in folder.glob("*.svg"):
-        if candidate.resolve() == target_path:
-            continue
-        if not candidate.is_file():
-            continue
-        candidate.unlink()
-        removed.append(candidate)
-    return removed
+    return []
 
 
 def raw_heatmap_url(output: str | Path, version: str | int | None = None) -> str | None:
