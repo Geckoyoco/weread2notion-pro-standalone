@@ -54,6 +54,10 @@ class BookNormalizationTests(unittest.TestCase):
     def test_normalize_timestamp_accepts_milliseconds(self):
         self.assertEqual(book.normalize_timestamp(1_700_000_000_000), 1_700_000_000)
         self.assertEqual(book.normalize_timestamp(1_700_000_000), 1_700_000_000)
+        self.assertEqual(
+            book.normalize_timestamp("2024-03-09T16:00:00.000Z"),
+            1_710_000_000,
+        )
 
     def test_metadata_update_time_is_not_treated_as_a_reading_date(self):
         self.assertIsNone(book.book_date({"updateTime": 1_700_000_000}))

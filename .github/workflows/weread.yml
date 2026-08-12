@@ -44,7 +44,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Verify status and heatmap logic
-        run: python -m unittest tests.test_book tests.test_heatmap_svg
+        run: python -m unittest tests.test_book tests.test_heatmap_svg tests.test_weread_api
       - name: Sync bookshelf and progress
         run: python -u scripts/book.py
       - name: Sync notes and highlights

@@ -40,6 +40,11 @@ def format_duration(seconds):
 
 
 def normalize_timestamp(value):
+    if isinstance(value, str) and value.strip():
+        try:
+            return int(pendulum.parse(value).timestamp())
+        except (ValueError, TypeError):
+            pass
     value = to_number(value, 0)
     if value > 100_000_000_000:
         value /= 1000
