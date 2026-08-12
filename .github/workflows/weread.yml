@@ -45,5 +45,3 @@ jobs:
         run: pip install -r requirements.txt
       - name: Sync bookshelf and progress
         run: python -u scripts/book.py
-      - name: Sync highlights and notes
-        run: python -u scripts/weread.py

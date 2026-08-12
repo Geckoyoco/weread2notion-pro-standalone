@@ -75,6 +75,12 @@ class NotionHelper:
                 self.database_name_dict[key] = value
         self.search_database(self.page_id)
         book_name = self.database_name_dict.get("BOOK_DATABASE_NAME")
+        if not self.database_id_dict.get(book_name):
+            normalized_book_name = (book_name or "").replace("📖", "").strip()
+            for discovered_name, discovered_id in self.database_id_dict.items():
+                if discovered_name.replace("📖", "").strip() == normalized_book_name:
+                    self.database_id_dict[book_name] = discovered_id
+                    break
         initialize_requested = os.getenv(
             "INITIALIZE_NOTION_TEMPLATE", ""
         ).lower() in {"1", "true", "yes"}
@@ -108,6 +114,27 @@ class NotionHelper:
         self.property_dict.update(
             self.retrieve_data_source(self.book_database_id).get("properties") or {}
         )
+        # The original Reading Notes database is intentionally supported as
+        # the single source of truth. It has book fields but no Pro relation
+        # fields because highlights are stored in each book page instead of a
+        # separate database.
+        self.legacy_book_database = (
+            "BookId" in self.property_dict
+            and "读书笔记" not in self.property_dict
+        )
+        if self.legacy_book_database:
+            self.review_database_id = None
+            self.bookmark_database_id = None
+            self.day_database_id = None
+            self.week_database_id = None
+            self.month_database_id = None
+            self.year_database_id = None
+            self.category_database_id = None
+            self.author_database_id = None
+            self.chapter_database_id = None
+            self.read_database_id = None
+            print("检测到旧版 Reading Notes，使用它作为唯一书库，跳过独立划线同步。")
+            return
         self.review_database_id = self.get_relation_database_id(
             self.property_dict.get("读书笔记")
         )
@@ -685,6 +712,19 @@ class NotionHelper:
             properties = result.get("properties") or {}
             bookId = self._safe_property_value(properties, "BookId")
             if not bookId:
+                continue
+            if self.legacy_book_database:
+                books_dict[bookId] = {
+                    "pageId": result.get("id"),
+                    "readingTime": self._safe_property_value(properties, "ReadingTime"),
+                    "category": self._safe_property_value(properties, "Categories"),
+                    "Sort": self._safe_property_value(properties, "Sort"),
+                    "cover": result.get("cover"),
+                    "myRating": self._safe_property_value(properties, "评分"),
+                    "lastReadingDate": self._safe_property_value(properties, "Date"),
+                    "progress": self._safe_property_value(properties, "Progress"),
+                    "status": self._safe_property_value(properties, "Status"),
+                }
                 continue
             books_dict[bookId] = {
                 "pageId": result.get("id"),

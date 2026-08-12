@@ -30,6 +30,15 @@ def to_number(value, default=0):
     return int(number) if number.is_integer() else number
 
 
+def format_duration(seconds):
+    seconds = int(to_number(seconds, 0))
+    hours, remainder = divmod(seconds, 3600)
+    minutes = remainder // 60
+    if hours:
+        return f"{hours}时{minutes}分"
+    return f"{minutes}分"
+
+
 def normalize_timestamp(value):
     value = to_number(value, 0)
     if value > 100_000_000_000:
@@ -252,6 +261,53 @@ def insert_read_record(notion_helper, page_id, timestamp, duration, book_page_id
         )
 
 
+def legacy_book_properties(notion_helper, seed):
+    """Map Pro's normalized book data to the original Reading Notes schema."""
+    authors = split_authors(seed.get("author"))
+    categories = normalize_categories(seed.get("categories") or seed.get("category"))
+    values = {
+        "BookName": seed.get("书名"),
+        "BookId": seed.get("BookId"),
+        "ISBN": seed.get("ISBN"),
+        "链接": seed.get("链接"),
+        "作者": ", ".join(authors),
+        "Sort": seed.get("Sort"),
+        "评分": seed.get("评分"),
+        "ReadingTime": format_duration(seed.get("阅读时长")),
+        "Progress": seed.get("阅读进度"),
+        "Date": seed.get("时间"),
+        "阅读分钟": round(to_number(seed.get("阅读时长"), 0) / 60, 2),
+        "Status": "读完" if seed.get("阅读状态") == "已读" else "在读",
+    }
+    properties = utils.get_properties(
+        {key: value for key, value in values.items() if key in notion_helper.property_dict},
+        {
+            "BookName": "title",
+            "BookId": "rich_text",
+            "ISBN": "rich_text",
+            "链接": "url",
+            "作者": "rich_text",
+            "Sort": "number",
+            "评分": "number",
+            "ReadingTime": "rich_text",
+            "Progress": "number",
+            "Date": "date",
+            "阅读分钟": "number",
+            "Status": "select",
+        },
+    )
+    cover = seed.get("封面")
+    if "Cover" in notion_helper.property_dict and cover:
+        properties["Cover"] = utils.get_properties(
+            {"Cover": cover}, {"Cover": "files"}
+        )["Cover"]
+    if "Categories" in notion_helper.property_dict and categories:
+        properties["Categories"] = {
+            "multi_select": [{"name": category} for category in categories]
+        }
+    return properties
+
+
 def sync_book(notion_helper, weread_api, notion_books, archive_map, books, index, book_id):
     existing = notion_books.get(book_id)
     seed = {
@@ -346,7 +402,10 @@ def sync_book(notion_helper, weread_api, notion_books, archive_map, books, index
         except Exception as error:
             print(f"NeoDB 查询失败，继续同步《{title}》: {error}")
 
-    properties = utils.get_properties(seed, book_properties_type_dict)
+    if notion_helper.legacy_book_database:
+        properties = legacy_book_properties(notion_helper, seed)
+    else:
+        properties = utils.get_properties(seed, book_properties_type_dict)
     if existing and existing.get("category") and book_id not in archive_map:
         properties["书架分类"] = {"select": None}
     if seed.get("时间"):
