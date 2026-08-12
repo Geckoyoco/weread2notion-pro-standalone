@@ -313,19 +313,22 @@ def main():
             continue
         pageId = notion_books.get(bookId).get("pageId")
         print(f"正在同步《{title}》，共 {len(books)} 本，当前第 {index + 1} 本。")
-        chapter = weread_api.get_chapter_info(bookId)
-        bookmark_list = get_bookmark_list(pageId, bookId)
-        reviews = get_review_list(pageId, bookId)
-        personal_rating = personal_rating_from_reviews(reviews)
-        bookmark_list.extend(reviews)
-        content = sort_notes(pageId, chapter, bookmark_list)
-        append_blocks(pageId, content)
-        properties = {"Sort": get_number(sort)}
-        if personal_rating:
-            properties["我的评分"] = {"select": {"name": personal_rating}}
-        notion_helper.update_book_page(
-            page_id=pageId, properties=properties
-        )
+        try:
+            chapter = weread_api.get_chapter_info(bookId)
+            bookmark_list = get_bookmark_list(pageId, bookId)
+            reviews = get_review_list(pageId, bookId)
+            personal_rating = personal_rating_from_reviews(reviews)
+            bookmark_list.extend(reviews)
+            content = sort_notes(pageId, chapter, bookmark_list)
+            append_blocks(pageId, content)
+            properties = {"Sort": get_number(sort)}
+            if personal_rating:
+                properties["我的评分"] = {"select": {"name": personal_rating}}
+            notion_helper.update_book_page(
+                page_id=pageId, properties=properties
+            )
+        except Exception as error:
+            print(f"同步《{title}》笔记失败，跳过本次，继续后续书籍：{error}")
 
 
 if __name__ == "__main__":
