@@ -327,7 +327,11 @@ class NotionHelper:
         if parsed.scheme not in {"http", "https"}:
             return False
         normalized = url.lower()
-        return "heatmap" in normalized or "/out_folder/" in normalized
+        return (
+            "heatmap" in normalized
+            or "/out_folder/" in normalized
+            or "/title-inline/" in normalized
+        )
 
     def search_database(self, block_id):
         """Recursively discover child databases and the optional heatmap block."""
@@ -459,25 +463,29 @@ class NotionHelper:
         )
 
     def create_heatmap(self, url):
-        """Append the heatmap image when a legacy placeholder does not exist."""
+        """Append the heatmap using the block type required by its URL."""
+        is_dashboard = "/title-inline/" in url.lower()
+        block = (
+            {"object": "block", "type": "embed", "embed": {"url": url}}
+            if is_dashboard
+            else {
+                "object": "block",
+                "type": "image",
+                "image": {
+                    "type": "external",
+                    "external": {"url": url},
+                },
+            }
+        )
         response = self.append_blocks(
             self.page_id,
-            [
-                {
-                    "object": "block",
-                    "type": "image",
-                    "image": {
-                        "type": "external",
-                        "external": {"url": url},
-                    },
-                }
-            ],
+            [block],
         )
         results = response.get("results") or []
         if not results or not results[0].get("id"):
             raise Exception("Notion 创建热力图图片块后没有返回 block ID")
         self.heatmap_block_id = results[0]["id"]
-        self._heatmap_block_type = "image"
+        self._heatmap_block_type = block["type"]
         return self.heatmap_block_id
 
     def get_week_relation_id(self, date):
