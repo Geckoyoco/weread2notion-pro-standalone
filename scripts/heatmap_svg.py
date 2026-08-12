@@ -144,7 +144,7 @@ def render_heatmap(
             "-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}"
         ),
         (
-            ".summary{font:600 13px \"PingFang SC\",\"Microsoft YaHei\","
+            ".summary{font:600 10px \"PingFang SC\",\"Microsoft YaHei\","
             "-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}"
         ),
         "</style>",
