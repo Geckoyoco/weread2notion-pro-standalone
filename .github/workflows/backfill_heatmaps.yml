@@ -2,6 +2,12 @@ name: Backfill historical heatmaps
 
 on:
   workflow_dispatch:
+    inputs:
+      years:
+        description: Space-separated years to refresh
+        required: false
+        default: "2020 2021 2022 2023 2024 2025 2026"
+        type: string
   schedule:
     - cron: "17 3 * * 0"
 
@@ -36,8 +42,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Read and render each year
+        env:
+          YEARS: ${{ inputs.years || '2020 2021 2022 2023 2024 2025 2026' }}
         run: |
-          for year in 2020 2021 2022 2023 2024 2025 2026; do
+          for year in $YEARS; do
             if ! YEAR="$year" HEATMAP_OUTPUT="OUT_FOLDER/weread-$year.svg" \
               python -u scripts/read_time.py --render-only; then
               echo "读取 $year 失败，保留现有文件，等待下次重试。"
