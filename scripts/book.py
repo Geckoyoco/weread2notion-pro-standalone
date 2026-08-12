@@ -75,7 +75,9 @@ def normalize_gateway_rating(value):
 def reading_status(marked_status, progress, reading_time):
     """Map the compatibility status to the Pro template's status names."""
 
-    if marked_status == 4:
+    # WeRead does not always return ``finishTime`` for books that are already
+    # at 100%.  Progress is therefore the reliable completion signal.
+    if marked_status == 4 or to_number(progress, 0) >= 1:
         return "已读"
     if to_number(reading_time, 0) > 0 or to_number(progress, 0) > 0:
         return "在读"
