@@ -510,6 +510,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 def update_heatmap_link(notion_helper, output: str | Path) -> bool:
     dashboard_url = (os.getenv("HEATMAP_DASHBOARD_URL") or "").strip()
+    dashboard_version = (
+        os.getenv("HEATMAP_DASHBOARD_VERSION")
+        or os.getenv("GITHUB_SHA")
+        or ""
+    ).strip()
+    if dashboard_url and dashboard_version:
+        separator = "&" if "?" in dashboard_url else "?"
+        dashboard_url = (
+            f"{dashboard_url}{separator}v="
+            f"{quote(dashboard_version[:12], safe='')}"
+        )
     image_url = dashboard_url or raw_heatmap_url(output)
     if notion_helper.heatmap_block_id and image_url:
         notion_helper.update_heatmap(notion_helper.heatmap_block_id, image_url)

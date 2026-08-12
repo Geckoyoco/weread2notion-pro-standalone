@@ -201,6 +201,33 @@ class ReadTimeTests(TestCase):
 
         self.assertEqual(helper.updated, ("heatmap-block", dashboard))
 
+    def test_dashboard_url_uses_commit_version_to_bypass_notion_cache(self):
+        class Helper:
+            heatmap_block_id = "heatmap-block"
+
+            def __init__(self):
+                self.updated = None
+
+            def update_heatmap(self, block_id, url):
+                self.updated = (block_id, url)
+
+        helper = Helper()
+        dashboard = "https://example.com/title-inline/"
+        with patch.dict(
+            os.environ,
+            {
+                "HEATMAP_DASHBOARD_URL": dashboard,
+                "GITHUB_SHA": "df36e0334b8ab4f660ea0e0569ebd38495a4c494",
+            },
+            clear=True,
+        ):
+            self.assertTrue(update_heatmap_link(helper, "OUT_FOLDER/weread-2026.svg"))
+
+        self.assertEqual(
+            helper.updated,
+            ("heatmap-block", f"{dashboard}?v=df36e0334b8a"),
+        )
+
     def test_palette_prefers_new_names_and_keeps_legacy_fallback(self):
         with patch.dict(
             os.environ,
