@@ -129,7 +129,7 @@ class WeReadApi:
     def _post_with_retry(self, payload: dict[str, Any]) -> requests.Response:
         """Retry transient network and server failures up to three times."""
 
-        for attempt in range(3):
+        for attempt in range(5):
             try:
                 response = self.session.post(
                     self.gateway_url,
@@ -149,12 +149,12 @@ class WeReadApi:
                     and status_code != 499
                 ):
                     raise
-                if attempt == 2:
+                if attempt == 4:
                     raise
             except requests.RequestException:
-                if attempt == 2:
+                if attempt == 4:
                     raise
-            time.sleep(2**attempt)
+            time.sleep(3 * (attempt + 1))
         raise AssertionError("unreachable")
 
     def get_bookshelf(self) -> dict[str, Any]:
