@@ -140,13 +140,14 @@ class WeReadApi:
                 return response
             except requests.HTTPError as error:
                 status_code = getattr(error.response, "status_code", None)
-                # 499 is returned by the WeRead gateway for a transient
-                # upstream/client disconnect. Treat it like a network error
-                # so a single slow book gets a few chances.
+                # The WeRead gateway can briefly return 403 even with a valid
+                # API key (a subsequent full sync succeeds). Retry 403 and 499
+                # like transient network errors, but keep other 4xx failures
+                # immediate so an invalid request is still surfaced quickly.
                 if (
                     status_code is not None
                     and 400 <= status_code < 500
-                    and status_code != 499
+                    and status_code not in {403, 499}
                 ):
                     raise
                 if attempt == 2:

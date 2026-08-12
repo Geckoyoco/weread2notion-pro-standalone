@@ -418,6 +418,32 @@ class WeReadApiTest(unittest.TestCase):
         self.assertEqual(session.attempts, 3)
         self.assertEqual([call.args[0] for call in sleep.call_args_list], [1, 2])
 
+    def test_transient_gateway_403_is_retried(self):
+        class ForbiddenResponse(FakeResponse):
+            status_code = 403
+
+            def raise_for_status(self):
+                raise weread_api_module.requests.HTTPError(response=self)
+
+        class FlakyForbiddenSession(FakeSession):
+            def __init__(self):
+                super().__init__({"/shelf/sync": {"books": []}})
+                self.attempts = 0
+
+            def post(self, url, json, timeout):
+                self.attempts += 1
+                if self.attempts < 3:
+                    return ForbiddenResponse({})
+                return super().post(url, json, timeout)
+
+        session = FlakyForbiddenSession()
+        api = WeReadApi(api_key="test-api-key", session=session)
+        with patch.object(weread_api_module.time, "sleep") as sleep:
+            self.assertEqual(api.get_bookshelf()["books"], [])
+
+        self.assertEqual(session.attempts, 3)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [1, 2])
+
 
 if __name__ == "__main__":
     unittest.main()
