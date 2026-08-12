@@ -279,8 +279,8 @@ def legacy_book_properties(notion_helper, seed):
         "Progress": seed.get("阅读进度"),
         "Date": seed.get("时间"),
         "阅读分钟": round(to_number(seed.get("阅读时长"), 0) / 60, 2),
-        # Keep the original database's three status options unchanged.
-        "Status": seed.get("阅读状态") or "想读",
+        # The moved legacy database has exactly these two options.
+        "Status": "读完" if seed.get("阅读状态") == "已读" else "在读",
     }
     properties = utils.get_properties(
         {key: value for key, value in values.items() if key in notion_helper.property_dict},
