@@ -125,10 +125,18 @@ class NotionHelper:
         if self.legacy_book_database:
             self.review_database_id = None
             self.bookmark_database_id = None
-            self.day_database_id = None
-            self.week_database_id = None
-            self.month_database_id = None
-            self.year_database_id = None
+            self.day_database_id = self.resolve_data_source_id(
+                self.database_id_dict.get("日")
+            )
+            self.week_database_id = self.resolve_data_source_id(
+                self.database_id_dict.get("周")
+            )
+            self.month_database_id = self.resolve_data_source_id(
+                self.database_id_dict.get("月")
+            )
+            self.year_database_id = self.resolve_data_source_id(
+                self.database_id_dict.get("年")
+            )
             self.category_database_id = None
             self.author_database_id = None
             self.chapter_database_id = None
