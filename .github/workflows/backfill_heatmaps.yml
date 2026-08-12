@@ -1,9 +1,9 @@
-name: Backfill 2025 heatmap
+name: Backfill historical heatmaps
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 3 * * *"
+    - cron: "17 3 * * 0"
 
 concurrency:
   group: heatmap-assets-${{ github.ref }}
@@ -14,19 +14,11 @@ permissions:
 
 jobs:
   backfill:
-    name: Restore 2025 daily reading data
+    name: Read genuine data for 2020-2026
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       WEREAD_API_KEY: ${{ secrets.WEREAD_API_KEY }}
-      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-      NOTION_PAGE: ${{ secrets.NOTION_PAGE }}
-      BOOK_DATABASE_NAME: ${{ vars.BOOK_DATABASE_NAME }}
-      CHAPTER_DATABASE_NAME: ${{ vars.CHAPTER_DATABASE_NAME }}
-      READ_DATABASE_NAME: ${{ vars.READ_DATABASE_NAME }}
-      YEAR: "2025"
-      REF: ${{ github.ref }}
-      REPOSITORY: ${{ github.repository }}
       HEATMAP_BACKGROUND: ${{ vars.HEATMAP_BACKGROUND || '#FFFFFF' }}
       HEATMAP_EMPTY: ${{ vars.HEATMAP_EMPTY || '#EBEDF0' }}
       HEATMAP_LOW: ${{ vars.HEATMAP_LOW || '#ACE7AE' }}
@@ -43,12 +35,18 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Restore 2025 heatmap
-        run: python -u scripts/read_time.py --skip-heatmap-update
-      - name: Publish restored asset
+      - name: Read and render each year
+        run: |
+          for year in 2020 2021 2022 2023 2024 2025 2026; do
+            if ! YEAR="$year" HEATMAP_OUTPUT="OUT_FOLDER/weread-$year.svg" \
+              python -u scripts/read_time.py --render-only; then
+              echo "读取 $year 失败，保留现有文件，等待下次重试。"
+            fi
+          done
+      - name: Publish verified yearly assets
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add OUT_FOLDER/weread-2025.svg
-          git diff --cached --quiet || git commit -m "chore: restore 2025 reading heatmap"
+          git add OUT_FOLDER/weread-*.svg
+          git diff --cached --quiet || git commit -m "chore: refresh historical reading heatmaps"
           git push

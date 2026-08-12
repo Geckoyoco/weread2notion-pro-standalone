@@ -52,6 +52,13 @@ class HeatmapSvgTests(unittest.TestCase):
             self.assertTrue(output.is_file())
             self.assertIn("2025-01-01", output.read_text(encoding="utf-8"))
 
+    def test_empty_year_is_explicit_and_has_no_duplicate_year_badge(self):
+        svg = render_heatmap({}, 2020)
+
+        self.assertIn("2020：暂无数据", svg)
+        self.assertIn(">暂无数据</text>", svg)
+        self.assertNotIn('width="56" height="24"', svg)
+
 
 if __name__ == "__main__":
     unittest.main()

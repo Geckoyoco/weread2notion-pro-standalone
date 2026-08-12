@@ -500,6 +500,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="只用已生成的 SVG 更新 Notion 链接，不请求微信读书或写统计",
     )
+    mode.add_argument(
+        "--render-only",
+        action="store_true",
+        help="只读取微信读书并生成 SVG，不写入 Notion 统计",
+    )
     return parser
 
 
@@ -558,6 +563,9 @@ def main(argv=None) -> None:
         palette=palette_from_env(),
     )
     print(f"已生成阅读热力图: {output}")
+
+    if args.render_only:
+        return
 
     notion_helper = NotionHelper()
     counts = sync_statistics(notion_helper, read_times)

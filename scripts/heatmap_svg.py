@@ -76,6 +76,8 @@ def _duration_text(seconds: int) -> str:
 
 def _summary(daily: Mapping[date, int], year: int) -> str:
     total = sum(daily.values())
+    if total <= 0:
+        return f"{year}：暂无数据"
     hours, remainder = divmod(total, 3600)
     minutes = remainder // 60
     active_days = {day for day, seconds in daily.items() if seconds > 0}
@@ -149,8 +151,6 @@ def render_heatmap(
         "</style>",
         f'<text class="title" x="12" y="22" fill="{text_color}">{escape(heading)}</text>',
         f'<text class="summary" x="12" y="43" fill="{text_color}">{escape(_summary(daily, year))}</text>',
-        f'<rect x="{width - 70}" y="9" width="56" height="24" rx="6" fill="#f6f7f9"/>',
-        f'<text class="label" x="{width - 52}" y="25" fill="{text_color}">{year}</text>',
     ]
 
     month_names = ("1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月")
@@ -191,6 +191,12 @@ def render_heatmap(
             ]
         )
         current += timedelta(days=1)
+
+    if not any(seconds > 0 for seconds in daily.values()):
+        lines.append(
+            f'<text class="summary" x="{width // 2}" y="{top + 56}" '
+            f'text-anchor="middle" fill="#8b949e">暂无数据</text>'
+        )
 
     legend_y = top + 7 * step + 24
     legend_x = width - right - (4 * step + 42)

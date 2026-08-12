@@ -6,29 +6,28 @@
   <title>微信读书年度热力图</title>
   <style>
     *{box-sizing:border-box}html,body{margin:0;background:#fff;color:#24292f;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    .card{width:100%;max-width:920px;margin:0 auto;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px 14px;background:#fff}
-    .bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-    h1{font-size:18px;line-height:1.2;margin:0;font-weight:700}
-    button{border:0;border-radius:7px;background:#f6f7f9;color:#59636e;font-weight:600;padding:7px 10px;cursor:pointer}
+    .card{position:relative;width:100%;max-width:920px;margin:0 auto;border:1px solid #e5e7eb;border-radius:12px;padding:0;background:#fff;overflow:hidden}
+    .year-picker{position:absolute;z-index:2;top:9px;right:14px;display:flex;align-items:center;border-radius:6px;background:#f4f5f7;color:#7b8490}
+    select{appearance:none;-webkit-appearance:none;border:0;outline:0;background:transparent;color:#66707b;font:600 11px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:5px 22px 5px 8px;cursor:pointer}
+    .chevron{position:absolute;right:7px;top:4px;font-size:10px;pointer-events:none;color:#8b949e}
     img{display:block;width:100%;height:auto;min-height:210px;object-fit:contain}
-    @media(max-width:640px){.card{border-radius:0;padding:14px 10px}.bar{padding:0 4px}h1{font-size:16px}}
+    @media(max-width:640px){.card{border-radius:0}.year-picker{right:8px}}
   </style>
 </head>
 <body>
   <main class="card">
-    <div class="bar"><h1>年度阅读</h1><button id="year" type="button" aria-label="切换年份" title="点击切换年份"></button></div>
+    <label class="year-picker"><select id="year" aria-label="选择年份"></select><span class="chevron">⌄</span></label>
     <img id="heatmap" src="weread-2026.svg" alt="2026 年微信读书热力图">
   </main>
   <script>
-    const button=document.querySelector('#year');
+    const select=document.querySelector('#year');
     const heatmap=document.querySelector('#heatmap');
-    const currentYear=new Date().getFullYear();
     const years=[];
-    for(let year=currentYear;year>=2025;year--){years.push(String(year))}
+    for(let year=2026;year>=2020;year--){years.push(String(year));select.add(new Option(year,year))}
     const requested=new URLSearchParams(location.search).get('year');
-    let index=Math.max(0,years.indexOf(requested));
-    function show(){const y=years[index];button.textContent=`${y}  📅`;heatmap.src=`weread-${y}.svg?v=${Date.now()}`;heatmap.alt=`${y} 年微信读书热力图`;history.replaceState(null,'',`?year=${y}`)}
-    button.addEventListener('click',()=>{index=(index+1)%years.length;show()});show();
+    select.value=years.includes(requested)?requested:years[0];
+    function show(){const y=select.value;heatmap.src=`weread-${y}.svg?v=${Date.now()}`;heatmap.alt=`${y} 年微信读书热力图`;history.replaceState(null,'',`?year=${y}`)}
+    select.addEventListener('change',show);show();
   </script>
 </body>
 </html>
