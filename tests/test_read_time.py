@@ -15,6 +15,7 @@ from scripts.read_time import (
     raw_heatmap_url,
     remove_stale_heatmaps,
     sync_statistics,
+    update_heatmap_link,
 )
 
 
@@ -182,6 +183,23 @@ class ReadTimeTests(TestCase):
             "https://raw.githubusercontent.com/reader/example/codex/modernize-pro/"
             "OUT_FOLDER/weread-2026.svg?v=42",
         )
+
+    def test_dashboard_url_is_used_for_notion_embed(self):
+        class Helper:
+            heatmap_block_id = "heatmap-block"
+
+            def __init__(self):
+                self.updated = None
+
+            def update_heatmap(self, block_id, url):
+                self.updated = (block_id, url)
+
+        helper = Helper()
+        dashboard = "https://example.com/title-inline/"
+        with patch.dict(os.environ, {"HEATMAP_DASHBOARD_URL": dashboard}, clear=True):
+            self.assertTrue(update_heatmap_link(helper, "OUT_FOLDER/weread-2026.svg"))
+
+        self.assertEqual(helper.updated, ("heatmap-block", dashboard))
 
     def test_palette_prefers_new_names_and_keeps_legacy_fallback(self):
         with patch.dict(

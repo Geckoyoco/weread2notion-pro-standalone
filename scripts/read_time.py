@@ -509,7 +509,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def update_heatmap_link(notion_helper, output: str | Path) -> bool:
-    image_url = raw_heatmap_url(output)
+    dashboard_url = (os.getenv("HEATMAP_DASHBOARD_URL") or "").strip()
+    image_url = dashboard_url or raw_heatmap_url(output)
     if notion_helper.heatmap_block_id and image_url:
         notion_helper.update_heatmap(notion_helper.heatmap_block_id, image_url)
         print(f"Notion 热力图已更新为公开 SVG: {image_url}")
