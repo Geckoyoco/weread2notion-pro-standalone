@@ -103,21 +103,50 @@ class BookNormalizationTests(unittest.TestCase):
             "category": "默认",
             "cover": "https://example.com/cover.jpg",
             "lastReadingDate": 100,
+            "progress": 0.1,
+            "status": "在读",
         }
         archive = {"1": "默认"}
         self.assertFalse(
             book.needs_sync(
-                "1", {"sort": 10, "readUpdateTime": 100}, existing, archive
+                "1",
+                {"sort": 10, "readUpdateTime": 100, "progress": 10},
+                existing,
+                archive,
             )
         )
         self.assertFalse(
             book.needs_sync(
-                "1", {"sort": 11, "readUpdateTime": 100}, existing, archive
+                "1",
+                {"sort": 11, "readUpdateTime": 100, "progress": 10},
+                existing,
+                archive,
             )
         )
         self.assertTrue(
             book.needs_sync(
-                "1", {"sort": 10, "readUpdateTime": 101}, existing, archive
+                "1",
+                {"sort": 10, "readUpdateTime": 101, "progress": 10},
+                existing,
+                archive,
+            )
+        )
+
+    def test_needs_sync_detects_progress_and_explicit_completion_changes(self):
+        existing = {
+            "category": None,
+            "cover": "https://example.com/cover.jpg",
+            "lastReadingDate": 100,
+            "progress": 0.45,
+            "status": "在读",
+        }
+
+        self.assertTrue(
+            book.needs_sync("1", {"progress": 46}, existing, {})
+        )
+        self.assertTrue(
+            book.needs_sync(
+                "1", {"progress": 45, "finishTime": 101}, existing, {}
             )
         )
 

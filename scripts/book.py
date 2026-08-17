@@ -239,6 +239,21 @@ def needs_sync(book_id, book, existing, archive_map, full_sync=False):
     if not existing.get("cover"):
         return True
 
+    remote_progress_value = book.get("readingProgress")
+    if remote_progress_value is None:
+        remote_progress_value = book.get("progress")
+    if remote_progress_value is not None:
+        remote_progress = normalize_gateway_progress(remote_progress_value)
+        if remote_progress != normalize_progress(existing.get("progress")):
+            return True
+
+    remote_finish = normalize_timestamp(
+        book.get("finishTime") or book.get("finishedDate")
+    )
+    local_completed = existing.get("status") in {"已读", "读完"}
+    if remote_finish and not local_completed:
+        return True
+
     # ``updateTime`` is the book metadata timestamp, not a reading cursor.
     # Comparing it with Notion's last-reading field would resync every unread
     # book on every run. Metadata can still be refreshed with FULL_SYNC.

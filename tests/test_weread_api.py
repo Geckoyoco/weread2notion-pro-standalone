@@ -128,6 +128,30 @@ class WeReadApiTest(unittest.TestCase):
         shelf = api.get_bookshelf()
 
         self.assertEqual(shelf["bookProgress"][0]["readingTime"], 3661)
+        self.assertEqual(shelf["books"][0]["readingTime"], 3661)
+
+    def test_bookshelf_merges_completion_into_book_for_incremental_sync(self):
+        api, _ = self.make_api(
+            {
+                "/shelf/sync": {
+                    "books": [{"bookId": "b1", "title": "Book"}],
+                    "bookProgress": [
+                        {
+                            "bookId": "b1",
+                            "progress": 45,
+                            "finishTime": 1710000000,
+                            "updateTime": 1700000000,
+                        }
+                    ],
+                }
+            }
+        )
+
+        book = api.get_bookshelf()["books"][0]
+
+        self.assertEqual(book["progress"], 45)
+        self.assertEqual(book["finishTime"], 1710000000)
+        self.assertEqual(book["readUpdateTime"], 1700000000)
 
     def test_notebooks_use_last_sort_pagination_and_normalize_items(self):
         api, session = self.make_api(
@@ -217,7 +241,7 @@ class WeReadApiTest(unittest.TestCase):
                     {"book": {"progress": 100, "updateTime": 10}},
                     {
                         "book": {
-                            "progress": 100,
+                            "progress": 45,
                             "updateTime": 10,
                             "finishTime": 20,
                         }
@@ -228,7 +252,7 @@ class WeReadApiTest(unittest.TestCase):
 
         statuses = [api.get_read_info("b1")["markedStatus"] for _ in range(4)]
 
-        self.assertEqual(statuses, [1, 2, 2, 4])
+        self.assertEqual(statuses, [1, 2, 4, 4])
 
     def test_bookmarks_reviews_and_chapters_keep_bare_legacy_shapes(self):
         api, session = self.make_api(

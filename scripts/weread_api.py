@@ -177,7 +177,20 @@ class WeReadApi:
             progress["readingTime"] = _to_number(
                 progress.get("readingTime"), 0
             ) or _to_number(progress.get("recordReadingTime"), 0)
+            progress["readUpdateTime"] = (
+                _to_number(progress.get("readUpdateTime"), 0)
+                or _to_number(progress.get("updateTime"), 0)
+                or _to_number(progress.get("lastReadingDate"), 0)
+            )
             progress_by_book[book_id] = progress
+
+        # Shelf progress is returned separately from book metadata.  Merge it
+        # back into each book so incremental sync can detect progress and
+        # completion changes without waiting for a metadata timestamp change.
+        books = [
+            {**book, **progress_by_book.get(str(book.get("bookId")), {})}
+            for book in books
+        ]
 
         result = dict(data)
         result["books"] = books
@@ -331,7 +344,11 @@ class WeReadApi:
             book.get("recordReadingTime"), 0
         )
 
-        if finish_time and progress >= 100:
+        # Imported/local books can be explicitly finished while their
+        # calculated page progress remains below 100%.  An explicit finish
+        # timestamp is authoritative; 100% progress is also sufficient when
+        # the Gateway omits finishTime.
+        if finish_time or progress >= 100:
             marked_status = 4
         elif update_time or _truthy(book.get("isStartReading")) or progress > 0:
             marked_status = 2
