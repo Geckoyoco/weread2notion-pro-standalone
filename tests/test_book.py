@@ -149,6 +149,11 @@ class BookNormalizationTests(unittest.TestCase):
                 "1", {"progress": 45, "finishTime": 101}, existing, {}
             )
         )
+        self.assertTrue(
+            book.needs_sync(
+                "1", {"progress": 45, "finishReading": 1}, existing, {}
+            )
+        )
 
     def test_needs_sync_does_not_compare_metadata_time_to_last_reading_time(self):
         existing = {
@@ -220,6 +225,48 @@ class BookNormalizationTests(unittest.TestCase):
             notion.properties["封面"]["files"][0]["external"]["url"],
             "https://img.test/shelf-cover.jpg",
         )
+
+    def test_sync_book_honors_shelf_finish_reading_for_imported_book(self):
+        class FakeApi:
+            def get_bookinfo(self, book_id):
+                return {"bookId": book_id, "title": "Imported"}
+
+            def get_read_info(self, book_id):
+                return {
+                    "bookId": book_id,
+                    "readingProgress": 89,
+                    "readingTime": 600,
+                    "markedStatus": 2,
+                }
+
+        class FakeNotion:
+            author_database_id = None
+            category_database_id = None
+            legacy_book_database = False
+
+            def __init__(self):
+                self.properties = None
+
+            def get_date_relation(self, properties, value):
+                return None
+
+            def create_book_page(self, *, properties, icon):
+                self.properties = properties
+                return {"id": "page-1"}
+
+        notion = FakeNotion()
+        book.sync_book(
+            notion,
+            FakeApi(),
+            {},
+            {},
+            {"b1": {"bookId": "b1", "title": "Imported", "finishReading": 1}},
+            0,
+            "b1",
+        )
+
+        self.assertEqual(notion.properties["阅读进度"]["number"], 0.89)
+        self.assertEqual(notion.properties["阅读状态"]["status"]["name"], "已读")
 
     def test_sync_book_preserves_remote_notebook_sort_for_new_books(self):
         class FakeApi:
