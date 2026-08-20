@@ -250,13 +250,8 @@ def needs_sync(book_id, book, existing, archive_map, full_sync=False):
     remote_finish = normalize_timestamp(
         book.get("finishTime") or book.get("finishedDate")
     )
-    shelf_completed = str(book.get("finishReading") or "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-    }
     local_completed = existing.get("status") in {"已读", "读完"}
-    if (remote_finish or shelf_completed) and not local_completed:
+    if remote_finish and not local_completed:
         return True
 
     # ``updateTime`` is the book metadata timestamp, not a reading cursor.
@@ -399,16 +394,6 @@ def sync_book(notion_helper, weread_api, notion_books, archive_map, books, index
         existing, weread_api.get_read_info(book_id) or {}
     )
     seed.update({key: value for key, value in progress.items() if value is not None})
-
-    # ``/shelf/sync`` is authoritative for explicit completion. Imported
-    # books can expose ``finishReading=1`` there while ``/book/getprogress``
-    # still reports a value below 100 and omits ``finishTime``.
-    if str(books[book_id].get("finishReading") or "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-    }:
-        seed["markedStatus"] = 4
 
     seed["书架分类"] = archive_map.get(book_id)
     seed["阅读进度"] = normalize_gateway_progress(seed.get("readingProgress"))
