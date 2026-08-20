@@ -79,7 +79,10 @@ def _summary(daily: Mapping[date, int], year: int) -> str:
         return f"{year}：暂无数据"
     hours, remainder = divmod(total, 3600)
     minutes = remainder // 60
-    active_days = {day for day, seconds in daily.items() if seconds > 0}
+    # WeRead counts a reading day only after at least one minute of activity.
+    # Use the same threshold for both the active-day total and streaks so a
+    # few accidental seconds cannot create or bridge a continuous run.
+    active_days = {day for day, seconds in daily.items() if seconds >= 60}
     longest = current = 0
     previous = None
     for day in sorted(active_days):

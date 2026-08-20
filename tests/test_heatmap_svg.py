@@ -50,6 +50,20 @@ class HeatmapSvgTests(unittest.TestCase):
         )
         self.assertNotIn("not-a-date", svg)
 
+    def test_summary_uses_weread_one_minute_active_day_threshold(self):
+        svg = render_heatmap(
+            {
+                "2026-08-13": 60,
+                "2026-08-14": 30,
+                "2026-08-15": 120,
+                "2026-08-16": 180,
+            },
+            2026,
+        )
+
+        self.assertIn("阅读 3 天", svg)
+        self.assertIn("最长连续 2 天", svg)
+
     def test_write_heatmap_creates_the_target_directory(self):
         with TemporaryDirectory() as directory:
             output = Path(directory) / "nested" / "weread-2025.svg"
