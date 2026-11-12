@@ -17,7 +17,7 @@ from typing import Any, Iterable, Mapping
 import requests
 
 WEREAD_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway"
-WEREAD_SKILL_VERSION = "1.0.4"
+WEREAD_SKILL_VERSION = "1.0.5"
 SHANGHAI_TIMEZONE = timezone(timedelta(hours=8))
 
 

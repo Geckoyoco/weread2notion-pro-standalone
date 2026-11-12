@@ -84,7 +84,7 @@ class WeReadApiTest(unittest.TestCase):
         self.assertEqual(session.headers["Content-Type"], "application/json")
         self.assertEqual(
             session.calls[0]["json"],
-            {"api_name": "/shelf/sync", "skill_version": "1.0.4"},
+            {"api_name": "/shelf/sync", "skill_version": "1.0.5"},
         )
 
     def test_bookshelf_does_not_mislabel_update_timestamp_as_reading_time(self):
